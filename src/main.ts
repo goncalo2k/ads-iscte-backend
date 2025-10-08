@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import * as cookieParser from 'cookie-parser';
-import * as session from 'express-session';
+import cookieParser from 'cookie-parser';
+import session from 'express-session';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
@@ -9,16 +9,17 @@ async function bootstrap() {
   const cfg = app.get(ConfigService);
 
   app.enableCors({
-    origin: (cfg.get<string>('CORS_ALLOWED_ORIGINS') || '').split(',').map(s => s.trim()),
+    origin: (cfg.get<string>('FRONTEND_URL') || '').split(',').map(s => s.trim()),
     credentials: true,
   });
 
   app.use(cookieParser());
   app.use(session({
-    secret: cfg.get<string>('SESSION_SECRET'),
     resave: false,
     saveUninitialized: false,
     cookie: { httpOnly: true },
+    credentials: true,
+    secret: cfg.get<string>('SESSION_SECRET') || 'please_change_this_secret',
   }));
 
   await app.listen(cfg.get<number>('SERVER_PORT') || 4000);
