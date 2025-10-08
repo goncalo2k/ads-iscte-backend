@@ -1,15 +1,17 @@
 import { BadRequestException, Controller, Get, Post, Query, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import { AuthService } from 'src/services/auth/auth.service';
 import { TokenStoreService } from 'src/services/token-store/token-store.service';
 
 import jwt from 'jsonwebtoken';
+import { GithubService } from 'src/services/github/github.service';
+import { AuthService } from 'src/services/auth/auth.service';
 
 @Controller('/auth/github')
 export class AuthController {
   constructor(private cfg: ConfigService,
     private authService: AuthService,
+    private githubService: GithubService,
     private store: TokenStoreService) { }
 
   @Get('login')
@@ -25,7 +27,7 @@ export class AuthController {
     if (!(await this.store.verifyAndConsumeState(state))) throw new BadRequestException('Invalid state');
 
     const { accessToken, scope, tokenType } = await this.authService.exchangeCodeForToken(code);
-    const user = await this.authService.getUser(accessToken);
+    const user = await this.githubService.getUser(accessToken);
 
     const sid = randomUUID();
     await this.store.setSession(sid, {
