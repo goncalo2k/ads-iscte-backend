@@ -12,6 +12,7 @@ export class GithubService {
     const emails = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/user/emails`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+    
     const primaryEmail = (emails.data as any[]).find(e => e.primary)?.email ?? emails.data?.[0]?.email ?? null;
     return {
       id: me.data.id,

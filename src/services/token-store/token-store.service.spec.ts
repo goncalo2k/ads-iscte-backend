@@ -1,7 +1,7 @@
 ´import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import { StoredToken } from './token-store';
+import { StoredToken } from '../../models/token-store.model';
 
 @Injectable()
 export class TokenStoreService {
