@@ -7,7 +7,7 @@ export class JwtCookieGuard implements CanActivate {
   constructor(private cfg: ConfigService) {}
   canActivate(ctx: ExecutionContext): boolean {
     const req = ctx.switchToHttp().getRequest();
-    const cookieName = this.cfg.get('COOKIE_NAME') ?? 'ghdash.sid';
+    const cookieName = this.cfg.get('COOKIE_NAME')!;
     const token = req.cookies?.[cookieName];
     if (!token) throw new UnauthorizedException('Missing auth cookie');
     try {

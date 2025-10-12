@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { Request, Response } from 'express';
@@ -8,7 +8,7 @@ import { TokenStoreService } from '../token-store/token-store.service';
 import { randomUUID } from 'crypto';
 import { AuthProvider } from 'src/models/token-store.model';
 import { GithubService } from '../github/github.service';
-import { Cookie } from 'src/models/cookie.model';
+import { Cookie, SameSitePolicy } from 'src/models/cookie.model';
 
 
 @Injectable()
@@ -18,7 +18,7 @@ export class AuthService {
   getAuthorizeUrl(state: string) {
     const clientId = this.cfg.get('GITHUB_CLIENT_ID');
     const redirectUri = encodeURIComponent(this.cfg.get('GITHUB_REDIRECT_URI')!);
-    const scope = encodeURIComponent(this.cfg.get('GITHUB_SCOPES') ?? 'read:user user:email');
+    const scope = encodeURIComponent(this.cfg.get('GITHUB_SCOPES')!);
     return `${this.cfg.get('GITHUB_LOGIN_OAUTH_URI')!}/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}&state=${state}`;
   }
 
@@ -58,19 +58,19 @@ export class AuthService {
     const appJwt = jwt.sign(
       { sid, sub: String(user.id), username: user.login },
       this.cfg.get<string>('JWT_SECRET')!,
-      { expiresIn: (this.cfg.get('JWT_EXPIRES_IN') ?? '30') + 'm' },
+      { expiresIn: Number(this.cfg.get('JWT_EXPIRES_IN')!) },
     );
 
-    const cookieName = this.cfg.get('COOKIE_NAME') ?? 'ghdash.sid';
+    const cookieName = this.cfg.get('COOKIE_NAME')!;
     const secure = this.cfg.get('COOKIE_SECURE') === 'true';
-    const sameSite = (this.cfg.get('COOKIE_SAMESITE') ?? 'lax') as 'lax' | 'strict' | 'none';
-    const domain = this.cfg.get('COOKIE_DOMAIN') || undefined;
+    const sameSite = (this.cfg.get('COOKIE_SAMESITE')!) as SameSitePolicy;
+    const domain = this.cfg.get('COOKIE_DOMAIN')!;
 
-    return { cookieName, appJwt, options: { httpOnly: true, secure, sameSite, domain, maxAge: 1000 * 60 * (this.cfg.get('JWT_EXPIRES_IN') ?? 30) } } as Cookie;
+    return { cookieName, appJwt, options: { httpOnly: true, secure, sameSite, domain, maxAge: 1000 * 60 * (this.cfg.get('JWT_EXPIRES_IN')!) } } as Cookie;
 
   }
   async logout(req: Request, res: Response): Promise<void> {
-    const cookieName = this.cfg.get('COOKIE_NAME') ?? 'ghdash.sid';
+    const cookieName = this.cfg.get('COOKIE_NAME')!;
     try {
       const token = req.cookies?.[cookieName];
       if (token) {
@@ -89,10 +89,34 @@ export class AuthService {
       res.clearCookie(cookieName, {
         httpOnly: true,
         secure: this.cfg.get('COOKIE_SECURE') === 'true',
-        sameSite: (this.cfg.get('COOKIE_SAMESITE') ?? 'lax') as any,
-        domain: this.cfg.get('COOKIE_DOMAIN') || undefined,
+        sameSite: (this.cfg.get('COOKIE_SAMESITE')!) as any,
+        domain: this.cfg.get('COOKIE_DOMAIN')!,
       });
       res.status(204).send();
     }
+  }
+
+  async getStatus(req: Request) {
+    const cookieName = this.cfg.get('COOKIE_NAME')!;
+    const raw = req.cookies?.[cookieName];
+    if (!raw) throw new UnauthorizedException('Missing auth cookie');
+
+    let payload: DecodedJwt;
+    try {
+      payload = jwt.verify(raw, this.cfg.get<string>('JWT_SECRET')!) as DecodedJwt;
+    } catch (error) {
+      throw new UnauthorizedException('Invalid/expired token');
+    }
+
+    const sess = await this.tokenStoreService.getSession(payload.sid);
+    if (!sess) throw new UnauthorizedException('Session revoked/expired');
+
+    await this.tokenStoreService.touch(payload.sid);
+
+    return {
+      ok: true,
+      user: { id: payload.sub, username: payload.username },
+      exp: payload.exp ?? null,
+    };
   }
 }

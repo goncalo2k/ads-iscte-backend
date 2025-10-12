@@ -14,8 +14,8 @@ export class TokenStoreService {
     @Inject(redisProvider.provide) private readonly redis: Redis,
     private readonly cfg: ConfigService,
   ) {
-    this.ns = this.cfg.get('REDIS_NAMESPACE') ?? 'app';
-    this.ttl = parseInt(this.cfg.get('SESSION_TTL_SECONDS') ?? '1800', 10);
+    this.ns = this.cfg.get('REDIS_NAMESPACE')!;
+    this.ttl = parseInt(this.cfg.get('SESSION_TTL_SECONDS')!, 10);
   }
 
   private kSess = (sid: string) => `${this.ns}:sess:${sid}`;

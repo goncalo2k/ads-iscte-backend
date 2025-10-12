@@ -25,11 +25,16 @@ export class AuthController {
     if (!code || !state) throw new BadRequestException('Missing code/state');
     const cookie = await this.authService.loginCallback(code, state);
     res.cookie(cookie.cookieName, cookie.appJwt, cookie.options);
-    res.redirect(`${this.cfg.get('FRONTEND_URL')}/dashboard`);
+    res.redirect(`${this.cfg.get('FRONTEND_URL')!}/dashboard`);
   }
 
   @Get('logout')
   async logout(@Req() req, @Res() res): Promise<void> {
     this.authService.logout(req, res);
+  }
+  
+  @Get('session')
+  async getSession(@Req() req, @Res() res): Promise<void> {
+    res.json(await this.authService.getStatus(req));
   }
 }
