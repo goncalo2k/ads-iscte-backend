@@ -4,7 +4,7 @@ export type StoredToken = {
   scope?: string;
   tokenType?: string;
   username: string;
-  githubId: number;
+  githubId: string;
 };
 
 export enum AuthProvider {
