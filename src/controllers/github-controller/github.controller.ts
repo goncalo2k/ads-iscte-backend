@@ -1,9 +1,7 @@
-import { Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'crypto';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { Sid } from 'src/decorators/sid.decorator';
 import { JwtCookieGuard } from 'src/guards/auth.guard';
-import { AuthService } from 'src/services/auth/auth.service';
+import { DashboardResponse } from 'src/models/api.model';
 import { GithubService } from 'src/services/github/github.service';
 import { TokenStoreService } from 'src/services/token-store/token-store.service';
 
@@ -15,16 +13,16 @@ export class GithubController {
     private githubService: GithubService) { }
 
   @Get('dashboard')
-  async getDashboard(@Res() res, @Sid() sid: string): Promise<void> {
-    const accessToken = (await this.store.getSession(sid))?.accessToken;
-    const repos = await this.githubService.getUserRepos(accessToken!);
-    res.json({ repos });
+  async getDashboard(@Sid() sid: string): Promise<DashboardResponse> {
+    const session = await this.store.getSession(sid);
+    if (!session) return { ok: false, error: 'session not found' };
+    return await this.githubService.getUserRepos(session.accessToken!);
   }
 
-  @Get('dashboard/search/:searchTerm')
-  async getReposBySearchTerm(@Res() res, @Sid() sid: string, @Param('searchTerm') searchTerm: string): Promise<void> {
-    const accessToken = (await this.store.getSession(sid))?.accessToken;
-    const repos = await this.githubService.getReposBySearchTerm(accessToken!, searchTerm);
-    res.json({ repos });
+  @Get('dashboard/search/')
+  async getReposBySearchTerm(@Sid() sid: string, @Query('searchTerm') searchTerm: string): Promise<DashboardResponse> {
+    const session = await this.store.getSession(sid);
+    if (!session) return { ok: false, error: 'session not found' };
+    return await this.githubService.getReposBySearchTerm(session.accessToken!, searchTerm);
   }
 }

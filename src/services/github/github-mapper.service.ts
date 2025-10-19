@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { DashboardResponse } from 'src/models/api.model';
 import { Repository } from 'src/models/repository.model';
+import { SearchRepository } from 'src/models/search-repository.model';
 import { User } from 'src/models/user.model';
 
 @Injectable()
@@ -22,6 +23,22 @@ export class GithubMapperService {
       forks_count: repo.forks_count,
       stargazers_count: repo.stargazers_count,
       watchers_count: repo.watchers_count,
+    };
+  }
+
+  mapSearchRepoToInternalRepository(searchRepo: SearchRepository): Repository {
+    return {
+      id: searchRepo.id,
+      name: searchRepo.name,
+      full_name: searchRepo.full_name,
+      private: searchRepo.private,
+      html_url: searchRepo.html_url,
+      description: searchRepo.description,
+      fork: searchRepo.fork,
+      url: searchRepo.url,
+      forks_count: searchRepo.forks_count,
+      stargazers_count: searchRepo.stargazers_count,
+      watchers_count: searchRepo.watchers_count,
     };
   }
 }

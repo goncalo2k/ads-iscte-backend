@@ -3,11 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { DashboardResponse } from 'src/models/api.model';
 import { Repository } from 'src/models/repository.model';
+import { SearchRepository } from 'src/models/search-repository.model';
 import { User } from 'src/models/user.model';
+import { GithubMapperService } from './github-mapper.service';
 
 @Injectable()
 export class GithubService {
-  constructor(private cfg: ConfigService) { }
+  constructor(private cfg: ConfigService, private githubMapper: GithubMapperService) { }
   async getUser(accessToken: string): Promise<User> {
     const me = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/user`, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -35,9 +37,12 @@ export class GithubService {
   }
 
   async getReposBySearchTerm(accessToken: string, searchTerm: string): Promise<DashboardResponse> {
-    const repos = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/search/repositories?q=${searchTerm}+in:name&sort=stars&order=desc&per_page=5`, {
+    const response = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/search/repositories?q=${searchTerm}+in:name&sort=stars&order=desc&per_page=5`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    return { ok: true, data: repos.data as Repository[] };
+
+    const searchRepos = response.data.items as SearchRepository[];
+
+    return { ok: true, data: searchRepos.map(repo => this.githubMapper.mapSearchRepoToInternalRepository(repo)) };
   }
 }

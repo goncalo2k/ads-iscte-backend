@@ -6,10 +6,11 @@ import { GithubController } from './controllers/github-controller/github.control
 import { TokenStoreService } from './services/token-store/token-store.service';
 import { GithubService } from './services/github/github.service';
 import { AuthService } from './services/auth/auth.service';
+import { GithubMapperService } from './services/github/github-mapper.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),],
   controllers: [AuthController, GithubController],
-  providers: [AuthService, TokenStoreService, GithubService, redisProvider],
+  providers: [AuthService, TokenStoreService, GithubService, GithubMapperService, redisProvider],
 })
 export class AppModule { }
