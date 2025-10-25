@@ -99,7 +99,7 @@ export interface SearchRepository {
     is_template: boolean,
     web_commit_signoff_required: boolean,
     topics: string[],
-    visibility: string, //todo: enum?
+    visibility: Visiblity,
     forks: number,
     open_issues: number,
     watchers: number,
@@ -112,4 +112,10 @@ export interface SearchRepository {
         pull: boolean
     },
     score: number
+}
+
+export interface Visiblity {
+    Public: 'public',
+    Private: 'private',
+    Internal: 'internal'
 }

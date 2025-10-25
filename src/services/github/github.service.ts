@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { DashboardResponse } from 'src/models/api.model';
+import { DashboardResponse, RepoistorySearchResponse } from 'src/models/api.model';
 import { Repository } from 'src/models/repository.model';
 import { SearchRepository } from 'src/models/search-repository.model';
 import { User } from 'src/models/user.model';
 import { GithubMapperService } from './github-mapper.service';
+import { SearchContributor } from 'src/models/search-user.model';
 
 @Injectable()
 export class GithubService {
@@ -46,8 +47,8 @@ export class GithubService {
       const response = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${owner}/${repo}`);
 
       const searchRepos = response.data as SearchRepository;
-      
-      return { ok: true, data: [this.githubMapper.mapSearchRepoToInternalRepository(searchRepos)] };
+
+      return { ok: true, data: [this.githubMapper.mapSearchRepoToInternalDashboardRepository(searchRepos)] };
     } else {
       const response = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/search/repositories?q=${searchTerm}+in:name&sort=stars&order=desc&per_page=5`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -55,11 +56,17 @@ export class GithubService {
 
       const searchRepos = response.data.items as SearchRepository[];
 
-      return { ok: true, data: searchRepos.map(repo => this.githubMapper.mapSearchRepoToInternalRepository(repo)) };
+      return { ok: true, data: searchRepos.map(repo => this.githubMapper.mapSearchRepoToInternalDashboardRepository(repo)) };
     }
   }
 
-  async getRepoInfo(accessToken: string, repo: string): Promise<Repository> {
-    return {} as Repository;
+  async getRepoInfo(repo: string): Promise<RepoistorySearchResponse> {
+    const repoInfoResponse = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}`);
+    const repoContributorsResponse = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/contributors`);
+
+    const repoInfo = repoInfoResponse.data as SearchRepository;
+    const contributors = (repoContributorsResponse.data) as SearchContributor[];
+
+    return {ok: true, data: this.githubMapper.mapSearchRepoToInternalRepository(repoInfo, contributors)};
   }
 }

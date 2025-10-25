@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { Sid } from 'src/decorators/sid.decorator';
 import { JwtCookieGuard } from 'src/guards/auth.guard';
-import { DashboardResponse } from 'src/models/api.model';
+import { DashboardResponse, RepoistorySearchResponse } from 'src/models/api.model';
 import { GithubService } from 'src/services/github/github.service';
 import { TokenStoreService } from 'src/services/token-store/token-store.service';
 
@@ -24,5 +24,12 @@ export class GithubController {
     const session = await this.store.getSession(sid);
     if (!session) return { ok: false, error: 'session not found' };
     return await this.githubService.getReposBySearchTerm(session.accessToken!, searchTerm);
+  }
+
+  @Get('dashboard/repository/:owner/:repo')
+  async getRepoInfoByUrl(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string): Promise<RepoistorySearchResponse> {
+    const session = await this.store.getSession(sid);
+    if (!session) return { ok: false, error: 'session not found' };
+    return await this.githubService.getRepoInfo(owner + '/' + repo);
   }
 }
