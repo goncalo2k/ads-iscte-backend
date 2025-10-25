@@ -37,12 +37,29 @@ export class GithubService {
   }
 
   async getReposBySearchTerm(accessToken: string, searchTerm: string): Promise<DashboardResponse> {
-    const response = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/search/repositories?q=${searchTerm}+in:name&sort=stars&order=desc&per_page=5`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
 
-    const searchRepos = response.data.items as SearchRepository[];
+    const isUrl = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)/i.test(searchTerm);
 
-    return { ok: true, data: searchRepos.map(repo => this.githubMapper.mapSearchRepoToInternalRepository(repo)) };
+    if (isUrl) {
+      const [, owner, repo] = searchTerm.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)/i)!;
+
+      const response = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${owner}/${repo}`);
+
+      const searchRepos = response.data as SearchRepository;
+      
+      return { ok: true, data: [this.githubMapper.mapSearchRepoToInternalRepository(searchRepos)] };
+    } else {
+      const response = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/search/repositories?q=${searchTerm}+in:name&sort=stars&order=desc&per_page=5`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      const searchRepos = response.data.items as SearchRepository[];
+
+      return { ok: true, data: searchRepos.map(repo => this.githubMapper.mapSearchRepoToInternalRepository(repo)) };
+    }
+  }
+
+  async getRepoInfo(accessToken: string, repo: string): Promise<Repository> {
+    return {} as Repository;
   }
 }
