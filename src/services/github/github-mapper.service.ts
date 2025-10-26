@@ -48,6 +48,7 @@ export class GithubMapperService {
       name: searchRepo.name,
       full_name: searchRepo.full_name,
       private: searchRepo.private,
+      html_url: searchRepo.html_url,
     };
   }
 

@@ -44,7 +44,9 @@ export class GithubService {
     if (isUrl) {
       const [, owner, repo] = searchTerm.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)/i)!;
 
-      const response = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${owner}/${repo}`);
+      const response = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${owner}/${repo}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
 
       const searchRepos = response.data as SearchRepository;
 
@@ -60,13 +62,17 @@ export class GithubService {
     }
   }
 
-  async getRepoInfo(repo: string): Promise<RepoistorySearchResponse> {
-    const repoInfoResponse = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}`);
-    const repoContributorsResponse = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/contributors`);
+  async getRepoInfo(accessToken: string, repo: string): Promise<RepoistorySearchResponse> {
+    const repoInfoResponse = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const repoContributorsResponse = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/contributors`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
     const repoInfo = repoInfoResponse.data as SearchRepository;
     const contributors = (repoContributorsResponse.data) as SearchContributor[];
 
-    return {ok: true, data: this.githubMapper.mapSearchRepoToInternalRepository(repoInfo, contributors)};
+    return { ok: true, data: this.githubMapper.mapSearchRepoToInternalRepository(repoInfo, contributors) };
   }
 }

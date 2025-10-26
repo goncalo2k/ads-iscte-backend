@@ -30,6 +30,6 @@ export class GithubController {
   async getRepoInfoByUrl(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string): Promise<RepoistorySearchResponse> {
     const session = await this.store.getSession(sid);
     if (!session) return { ok: false, error: 'session not found' };
-    return await this.githubService.getRepoInfo(owner + '/' + repo);
+    return await this.githubService.getRepoInfo(session.accessToken!, owner + '/' + repo);
   }
 }
