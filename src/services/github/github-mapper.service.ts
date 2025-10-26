@@ -3,11 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { Contributor } from 'src/models/contributor.model';
 import { Repository } from 'src/models/repository.model';
 import { SearchRepository } from 'src/models/search-repository.model';
+import { SearchStats } from 'src/models/search-stats.model';
 import { SearchContributor } from 'src/models/search-user.model';
 
 @Injectable()
 export class GithubMapperService {
-  constructor(private cfg: ConfigService) { }
+  constructor() { }
 
   mapGitRepoToInternal(repo: any): Repository {
     return {
@@ -61,14 +62,16 @@ export class GithubMapperService {
     }
   }
 
-  mapAdditionalStatsToContributor(contributor: SearchContributor, userContributionsResp: {
-    additions: number;
-    deletions: number;
-  }): Contributor {
+  mapAdditionalStatsToContributor(contributor: SearchContributor, userContributionsResp: SearchStats
+  ): Contributor {
     return {
       ...this.mapContributorToInternal(contributor),
       additions: userContributionsResp.additions,
       deletions: userContributionsResp.deletions,
+      issuesOpened: userContributionsResp.issuesOpened,
+      issuesClosed: userContributionsResp.issuesClosed,
+      prsSubmitted: userContributionsResp.prsSubmitted,
+      prsApproved: userContributionsResp.prsApproved,
     };
   }
 }

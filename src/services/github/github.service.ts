@@ -8,7 +8,8 @@ import { User } from 'src/models/user.model';
 import { GithubMapperService } from './github-mapper.service';
 import { SearchContributor } from 'src/models/search-user.model';
 import { Contributor } from 'src/models/contributor.model';
-import { HISTORY_QUERY } from 'src/queries/commit-history-query';
+import { USER_REPO_ACTIVITY_AND_HISTORY_QUERY } from 'src/queries/commit-history-query';
+import { SearchStats } from 'src/models/search-stats.model';
 
 @Injectable()
 export class GithubService {
@@ -81,7 +82,7 @@ export class GithubService {
 
   async getUserDashboard(accessToken: string, owner: string, repo: string, userNodeId: string): Promise<UserStatsResponse> {
     const [userContributionsResp, repoContributorResponse] = await Promise.all([
-      this.getUserRepoContributionStats(accessToken, owner, repo, userNodeId, {}),
+      this.getUserRepoContributionStats(accessToken, owner, repo, userNodeId, {}), //TODO: ADD DATE WINDOW!
       axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${owner}/${repo}/contributors`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       }),
@@ -100,47 +101,170 @@ export class GithubService {
     repo: string,
     userNodeId: string,
     options?: { since?: string; until?: string; branch?: string }
-  ): Promise<{ additions: number; deletions: number }> {
+  ): Promise<SearchStats> {
     const { since, until, branch } = options ?? {};
+    const repoFullName = `${owner}/${repo}`;
 
-    // Build vars for the unified history query
-    const qualifiedRef = branch ? `refs/heads/${branch}` : "refs/heads/ignored";
+    // Branch selection (history)
+    const qualifiedRef = branch ? `refs/heads/${branch}` : 'refs/heads/ignored';
     const useBranch = Boolean(branch);
 
-    let after: string | null = null;
+    // Cursors for the three connections we paginate
+    let afterHistory: string | null = null;
+    let afterClosedIssues: string | null = null;
+    let afterReviews: string | null = null;
+
+    // Accumulators
     let additions = 0;
     let deletions = 0;
+    let issuesOpened = 0;
+    let issuesClosed = 0;
+    let prsSubmitted = 0;
+    let prsApproved = 0;
+
+    // Helper: window check
+    const within = (iso?: string | null) =>
+      !!iso &&
+      (!since || iso >= since) &&
+      (!until || iso <= until!);
 
     for (; ;) {
       const { data } = await axios.post(
         this.cfg.get('GITHUB_GRAPHQL_URL')!,
         {
-          query: HISTORY_QUERY,
-          variables: { owner, repo, authorId: userNodeId, since, until, after, useBranch, qualifiedRef },
+          query: USER_REPO_ACTIVITY_AND_HISTORY_QUERY,
+          variables: {
+            owner,
+            repo,
+            authorId: userNodeId,
+            from: since ?? null,
+            to: until ?? null,
+            afterHistory,
+            afterClosedIssues,
+            afterReviews,
+            useBranch,
+            qualifiedRef,
+          },
         },
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
 
-      if (data.errors?.length > 0) {
-        throw new Error(`History query failed: ${JSON.stringify(data.errors)}`);
+      if (data.errors?.length) {
+        throw new Error(`GraphQL failed: ${JSON.stringify(data.errors)}`);
       }
 
+      const repoNode = data?.data?.repository;
+      const userNode = data?.data?.node;
+
+      // A) Commit history → additions/deletions
       const hist =
-        data?.data?.repository?.ref?.target?.history ??
-        data?.data?.repository?.defaultBranchRef?.target?.history;
+        repoNode?.ref?.target?.history ??
+        repoNode?.defaultBranchRef?.target?.history ??
+        null;
 
-      if (!hist) throw new Error("Commit history not found (bad branch?)");
-
-
-      for (const n of hist.nodes as Array<{ additions: number; deletions: number }>) {
-        additions += n.additions ?? 0;
-        deletions += n.deletions ?? 0;
+      if (hist?.nodes?.length) {
+        for (const n of hist.nodes as Array<{ additions?: number; deletions?: number }>) {
+          additions += n.additions ?? 0;
+          deletions += n.deletions ?? 0;
+        }
       }
 
-      if (!hist.pageInfo?.hasNextPage) break;
-      after = hist.pageInfo.endCursor;
+      // B) Issues closed by the user (ClosedEvent.actor)
+      const closedIssuesConn = repoNode?.closedIssues;
+      if (closedIssuesConn?.nodes?.length) {
+        for (const issue of closedIssuesConn.nodes as Array<{
+          closedAt?: string | null;
+          timelineItems?: {
+            nodes?: Array<{
+              __typename?: string;
+              createdAt?: string;
+              actor?: { __typename?: string; id?: string | null } | null;
+            }>;
+          };
+        }>) {
+          const events = issue.timelineItems?.nodes ?? [];
+          const closedByUser = events.some(
+            (ev) =>
+              ev?.__typename === 'ClosedEvent' &&
+              ev?.actor?.__typename === 'User' &&
+              ev?.actor?.id === userNodeId
+          );
+
+          // You can use issue.closedAt or ClosedEvent.createdAt for the window; closedAt is fine.
+          if (closedByUser && within(issue.closedAt)) {
+            issuesClosed += 1;
+          }
+        }
+      }
+
+      // C) User contributions window → issues opened, PRs submitted, PR reviews (approved)
+      const cc = userNode?.contributionsCollection;
+
+      // Issues opened (repo bucket)
+      if (cc?.issueContributionsByRepository?.length) {
+        const bucket = cc.issueContributionsByRepository.find(
+          (b: any) => b.repository?.nameWithOwner === repoFullName
+        );
+        if (bucket?.contributions?.totalCount) {
+          issuesOpened = bucket.contributions.totalCount;
+        }
+      }
+
+      // PRs submitted (opened)
+      if (cc?.pullRequestContributionsByRepository?.length) {
+        const bucket = cc.pullRequestContributionsByRepository.find(
+          (b: any) => b.repository?.nameWithOwner === repoFullName
+        );
+        if (bucket?.contributions?.totalCount) {
+          prsSubmitted = bucket.contributions.totalCount;
+        }
+      }
+
+      // PR reviews → count APPROVED in repo & within window
+      const reviewBuckets = cc?.pullRequestReviewContributionsByRepository ?? [];
+      const repoReviewBucket = reviewBuckets.find(
+        (b: any) => b.repository?.nameWithOwner === repoFullName
+      );
+      const reviewNodes =
+        repoReviewBucket?.contributions?.nodes as
+        | Array<{
+          pullRequestReview?: {
+            state?: string;
+            submittedAt?: string;
+            pullRequest?: { repository?: { nameWithOwner?: string } };
+          } | null;
+        }>
+        | undefined;
+
+      if (reviewNodes?.length) {
+        for (const n of reviewNodes) {
+          const r = n?.pullRequestReview;
+          if (!r) continue;
+          if (
+            r.state === 'APPROVED' &&
+            r.pullRequest?.repository?.nameWithOwner === repoFullName &&
+            within(r.submittedAt ?? null)
+          ) {
+            prsApproved += 1;
+          }
+        }
+      }
+
+      // Advance cursors
+      const histHasNext = Boolean(hist?.pageInfo?.hasNextPage);
+      if (histHasNext) afterHistory = hist!.pageInfo!.endCursor;
+
+      const issuesHasNext = Boolean(closedIssuesConn?.pageInfo?.hasNextPage);
+      if (issuesHasNext) afterClosedIssues = closedIssuesConn!.pageInfo!.endCursor;
+
+      const reviewsHasNext = Boolean(repoReviewBucket?.contributions?.pageInfo?.hasNextPage);
+      if (reviewsHasNext) afterReviews = repoReviewBucket!.contributions!.pageInfo!.endCursor;
+
+      // Stop when all drained
+      if (!histHasNext && !issuesHasNext && !reviewsHasNext) break;
     }
 
-    return { additions, deletions };
+    return { additions, deletions, issuesOpened, issuesClosed, prsSubmitted, prsApproved } as SearchStats;
   }
+
 }
