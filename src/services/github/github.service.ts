@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { DashboardResponse, RepoistorySearchResponse } from 'src/models/api.model';
@@ -34,7 +34,7 @@ export class GithubService {
       headers: { Authorization: `Bearer ${accessToken}` },
       params: { per_page: 100, sort: 'updated' },
     });
-    return { ok: true, data: repos.data as Repository[] };
+    return { status: HttpStatus.OK, data: repos.data as Repository[] };
   }
 
   async getReposBySearchTerm(accessToken: string, searchTerm: string): Promise<DashboardResponse> {
@@ -50,7 +50,7 @@ export class GithubService {
 
       const searchRepos = response.data as SearchRepository;
 
-      return { ok: true, data: [this.githubMapper.mapSearchRepoToInternalDashboardRepository(searchRepos)] };
+      return { status: HttpStatus.OK, data: [this.githubMapper.mapSearchRepoToInternalDashboardRepository(searchRepos)] };
     } else {
       const response = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/search/repositories?q=${searchTerm}+in:name&sort=stars&order=desc&per_page=5`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -58,7 +58,7 @@ export class GithubService {
 
       const searchRepos = response.data.items as SearchRepository[];
 
-      return { ok: true, data: searchRepos.map(repo => this.githubMapper.mapSearchRepoToInternalDashboardRepository(repo)) };
+      return { status: HttpStatus.OK, data: searchRepos.map(repo => this.githubMapper.mapSearchRepoToInternalDashboardRepository(repo)) };
     }
   }
 
@@ -73,6 +73,6 @@ export class GithubService {
     const repoInfo = repoInfoResponse.data as SearchRepository;
     const contributors = (repoContributorsResponse.data) as SearchContributor[];
 
-    return { ok: true, data: this.githubMapper.mapSearchRepoToInternalRepository(repoInfo, contributors) };
+    return { status: HttpStatus.OK, data: this.githubMapper.mapSearchRepoToInternalRepository(repoInfo, contributors) };
   }
 }

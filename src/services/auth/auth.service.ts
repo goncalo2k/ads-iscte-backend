@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { Request, Response } from 'express';
@@ -114,7 +114,7 @@ export class AuthService {
     await this.tokenStoreService.touch(payload.sid);
 
     return {
-      ok: true,
+      status: HttpStatus.OK,
       user: { id: payload.sub, username: payload.username },
       exp: payload.exp ?? null,
     };
