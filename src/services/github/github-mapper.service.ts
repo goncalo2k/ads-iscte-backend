@@ -7,7 +7,7 @@ import { SearchContributor } from 'src/models/search-user.model';
 
 @Injectable()
 export class GithubMapperService {
-  constructor(private cfg: ConfigService) {}
+  constructor(private cfg: ConfigService) { }
 
   mapGitRepoToInternal(repo: any): Repository {
     return {
@@ -42,7 +42,7 @@ export class GithubMapperService {
     };
   }
 
-    mapSearchRepoToInternalDashboardRepository(searchRepo: SearchRepository): Repository {
+  mapSearchRepoToInternalDashboardRepository(searchRepo: SearchRepository): Repository {
     return {
       id: searchRepo.id,
       name: searchRepo.name,
@@ -55,8 +55,20 @@ export class GithubMapperService {
   mapContributorToInternal(contributor: SearchContributor): Contributor {
     return {
       id: contributor.id,
+      node_id: contributor.node_id,
       name: contributor.login,
       contributions: contributor.contributions,
     }
+  }
+
+  mapAdditionalStatsToContributor(contributor: SearchContributor, userContributionsResp: {
+    additions: number;
+    deletions: number;
+  }): Contributor {
+    return {
+      ...this.mapContributorToInternal(contributor),
+      additions: userContributionsResp.additions,
+      deletions: userContributionsResp.deletions,
+    };
   }
 }

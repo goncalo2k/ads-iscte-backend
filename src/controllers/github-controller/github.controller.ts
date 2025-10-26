@@ -1,7 +1,7 @@
 import { Controller, Get, HttpStatus, Param, Query, UseGuards } from '@nestjs/common';
 import { Sid } from 'src/decorators/sid.decorator';
 import { JwtCookieGuard } from 'src/guards/auth.guard';
-import { DashboardResponse, RepoistorySearchResponse } from 'src/models/api.model';
+import { DashboardResponse, RepositorySearchResponse, UserStatsResponse } from 'src/models/api.model';
 import { GithubService } from 'src/services/github/github.service';
 import { TokenStoreService } from 'src/services/token-store/token-store.service';
 
@@ -27,9 +27,16 @@ export class GithubController {
   }
 
   @Get('dashboard/repository/:owner/:repo')
-  async getRepoInfoByUrl(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string): Promise<RepoistorySearchResponse> {
+  async getRepoInfoByUrl(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string): Promise<RepositorySearchResponse> {
     const session = await this.store.getSession(sid);
     if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
     return await this.githubService.getRepoInfo(session.accessToken!, owner + '/' + repo);
+  }
+
+  @Get('dashboard/repository/:owner/:repo/contributors/:userNodeId')
+  async getUserInfoByRepo(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Param('userNodeId') userNodeId: string): Promise<UserStatsResponse> {
+    const session = await this.store.getSession(sid);
+    if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
+    return await this.githubService.getUserDashboard(session.accessToken!, owner, repo, userNodeId);
   }
 }
