@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { DashboardResponse, RepositorySearchResponse, UserStatsResponse } from 'src/models/api.model';
+import { DashboardResponse, RepositorySearchResponse, UserRepositoryResponse, UserStatsResponse } from 'src/models/api.model';
 import { Repository } from 'src/models/repository.model';
 import { SearchRepository } from 'src/models/search-repository.model';
 import { User } from 'src/models/user.model';
@@ -32,15 +32,22 @@ export class GithubService {
     };
   }
 
-  async getUserRepos(accessToken: string): Promise<DashboardResponse> {
+  async getUserRepos(accessToken: string): Promise<Repository[]> {
     const repos = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/user/repos`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       params: { per_page: 100, sort: 'updated' },
     });
-    return { status: HttpStatus.OK, data: repos.data as Repository[] };
+
+    return repos.data as Repository[];
   }
 
-  async getReposBySearchTerm(accessToken: string, searchTerm: string): Promise<DashboardResponse> {
+  async getUserInitialDashboard(accessToken: string): Promise<DashboardResponse> {
+    const [user, repos] = await Promise.all([this.getUser(accessToken), this.getUserRepos(accessToken)]);
+
+    return { status: HttpStatus.OK, data: { user, repos } }
+  }
+
+  async getReposBySearchTerm(accessToken: string, searchTerm: string): Promise<UserRepositoryResponse> {
 
     const isUrl = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)/i.test(searchTerm);
 

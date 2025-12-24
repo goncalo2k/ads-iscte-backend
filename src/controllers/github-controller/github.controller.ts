@@ -1,7 +1,7 @@
 import { Controller, Get, HttpStatus, Param, Query, UseGuards } from '@nestjs/common';
 import { Sid } from 'src/decorators/sid.decorator';
 import { JwtCookieGuard } from 'src/guards/auth.guard';
-import { DashboardResponse, RepositorySearchResponse, UserStatsResponse } from 'src/models/api.model';
+import { DashboardResponse, RepositorySearchResponse, UserRepositoryResponse, UserStatsResponse } from 'src/models/api.model';
 import { GithubService } from 'src/services/github/github.service';
 import { TokenStoreService } from 'src/services/token-store/token-store.service';
 
@@ -16,11 +16,11 @@ export class GithubController {
   async getDashboard(@Sid() sid: string): Promise<DashboardResponse> {
     const session = await this.store.getSession(sid);
     if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
-    return await this.githubService.getUserRepos(session.accessToken!);
+    return await this.githubService.getUserInitialDashboard(session.accessToken!);
   }
 
   @Get('dashboard/search/')
-  async getReposBySearchTerm(@Sid() sid: string, @Query('searchTerm') searchTerm: string): Promise<DashboardResponse> {
+  async getReposBySearchTerm(@Sid() sid: string, @Query('searchTerm') searchTerm: string): Promise<UserRepositoryResponse> {
     const session = await this.store.getSession(sid);
     if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
     return await this.githubService.getReposBySearchTerm(session.accessToken!, searchTerm);

@@ -1,8 +1,11 @@
 import { HttpStatus } from "@nestjs/common";
 import { Repository } from "./repository.model";
 import { Contributor } from "./contributor.model";
+import { User } from "./user.model";
 
-export interface DashboardResponse extends ApiResponse<Repository[]> { }
+export interface DashboardResponse extends ApiResponse<{user: User, repos: Repository[]}> { }
+
+export interface UserRepositoryResponse extends ApiResponse<Repository[]> { }
 
 export interface RepositorySearchResponse extends ApiResponse<Repository> { }
 
