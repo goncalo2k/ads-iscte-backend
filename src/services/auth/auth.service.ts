@@ -69,7 +69,9 @@ export class AuthService {
     return { cookieName, appJwt, options: { httpOnly: true, secure, sameSite, domain, maxAge: 1000 * 60 * (this.cfg.get('JWT_EXPIRES_IN')!) } } as Cookie;
 
   }
-  async logout(req: Request, res: Response): Promise<void> {
+  async logout(req: Request, res: Response): Promise<HttpStatus> {
+    let statusCode: HttpStatus = HttpStatus.NO_CONTENT;
+
     const cookieName = this.cfg.get('COOKIE_NAME')!;
     try {
       const token = req.cookies?.[cookieName];
@@ -84,7 +86,9 @@ export class AuthService {
         }
       }
     } catch {
+      statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
       console.error('Error during logout - no sid found in token!');
+
     } finally {
       res.clearCookie(cookieName, {
         httpOnly: true,
@@ -92,7 +96,7 @@ export class AuthService {
         sameSite: (this.cfg.get('COOKIE_SAMESITE')!) as any,
         domain: this.cfg.get('COOKIE_DOMAIN')!,
       });
-      res.status(204).send();
+      return statusCode;
     }
   }
 

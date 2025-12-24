@@ -30,7 +30,7 @@ export class AuthController {
 
   @Get('logout')
   async logout(@Req() req, @Res() res): Promise<void> {
-    this.authService.logout(req, res);
+    res.status(await this.authService.logout(req, res)).send();
   }
   
   @Get('session')
