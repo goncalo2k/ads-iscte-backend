@@ -8,24 +8,6 @@ import { SearchContributor } from 'src/models/search-user.model';
 
 @Injectable()
 export class GithubMapperService {
-  constructor() { }
-
-  mapGitRepoToInternal(repo: any): Repository {
-    return {
-      id: repo.id,
-      name: repo.name,
-      full_name: repo.full_name,
-      private: repo.private,
-      html_url: repo.html_url,
-      description: repo.description,
-      fork: repo.fork,
-      url: repo.url,
-      forks_count: repo.forks_count,
-      stargazers_count: repo.stargazers_count,
-      watchers_count: repo.watchers_count,
-    };
-  }
-
   mapSearchRepoToInternalRepository(searchRepo: SearchRepository, contributors: SearchContributor[]): Repository {
     return {
       id: searchRepo.id,
@@ -34,6 +16,9 @@ export class GithubMapperService {
       private: searchRepo.private,
       html_url: searchRepo.html_url,
       description: searchRepo.description,
+      updated_at: searchRepo.updated_at,
+      size: searchRepo.size,
+      language: searchRepo.language,
       fork: searchRepo.fork,
       url: searchRepo.url,
       forks_count: searchRepo.forks_count,
@@ -50,6 +35,9 @@ export class GithubMapperService {
       full_name: searchRepo.full_name,
       private: searchRepo.private,
       html_url: searchRepo.html_url,
+      updated_at: searchRepo.updated_at,
+      size: searchRepo.size,
+      language: searchRepo.language,
     };
   }
 
@@ -57,7 +45,9 @@ export class GithubMapperService {
     return {
       id: contributor.id,
       node_id: contributor.node_id,
-      name: contributor.login,
+      userName: contributor.login,
+      avatarUrl: contributor.avatar_url,
+      name: contributor.name,
       contributions: contributor.contributions,
     }
   }
@@ -66,6 +56,7 @@ export class GithubMapperService {
   ): Contributor {
     return {
       ...this.mapContributorToInternal(contributor),
+      name: userContributionsResp.userName,
       additions: userContributionsResp.additions,
       deletions: userContributionsResp.deletions,
       issuesOpened: userContributionsResp.issuesOpened,

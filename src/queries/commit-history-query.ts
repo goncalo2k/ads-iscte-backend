@@ -58,6 +58,7 @@ export const USER_REPO_ACTIVITY_AND_HISTORY_QUERY = `
     node(id: $authorId) {
       ... on User {
         login
+        name
         contributionsCollection(from: $from, to: $to) {
           issueContributionsByRepository(maxRepositories: 100) {
             repository { nameWithOwner }

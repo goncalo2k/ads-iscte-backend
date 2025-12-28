@@ -1,11 +1,33 @@
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import Redis, { RedisOptions } from 'ioredis';
 
 export const redisProvider = {
   provide: 'REDIS',
   inject: [ConfigService],
   useFactory: (cfg: ConfigService) => {
     const url = cfg.get<string>('REDIS_URL')!;
-    return new Redis(url, { tls: url.startsWith('rediss://') ? {} : undefined });
+    const isTls = url.startsWith('rediss://');
+
+    const options: RedisOptions = {
+      keepAlive: 10_000,
+      connectTimeout: 10_000,
+
+      retryStrategy: (times) => Math.min(times * 200, 2_000),
+
+      maxRetriesPerRequest: 2,
+      enableReadyCheck: true,
+
+      ...(isTls ? { tls: { servername: new URL(url).hostname } } : {}),
+    };
+
+    const redis = new Redis(url, options);
+
+    redis.on('error', (e) => console.error('[redis] error', e));
+    redis.on('close', () => console.warn('[redis] close'));
+    redis.on('reconnecting', (delay) =>
+      console.warn('[redis] reconnecting in', delay, 'ms'),
+    );
+
+    return redis;
   },
 };

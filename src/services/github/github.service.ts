@@ -79,12 +79,27 @@ export class GithubService {
       }),
       axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/contributors`, {
         headers: { Authorization: `Bearer ${accessToken}` },
-      }),
+      })
     ]);
     const repoInfo = repoInfoResponse.data as SearchRepository;
     const contributors = (repoContributorsResponse.data) as SearchContributor[];
 
-    return { status: HttpStatus.OK, data: this.githubMapper.mapSearchRepoToInternalRepository(repoInfo, contributors) };
+    const contributorsWithNames = await Promise.all(
+      contributors.map(async (c) => {
+        try {
+          const { data: user } = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/users/${c.login}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+          return {
+            ...c,
+            name: user?.name ?? null,
+          };
+        } catch {
+          return { ...c, name: null };
+        }
+      })
+    );
+
+
+    return { status: HttpStatus.OK, data: this.githubMapper.mapSearchRepoToInternalRepository(repoInfo, contributorsWithNames) };
   }
 
   async getUserDashboard(accessToken: string, owner: string, repo: string, userNodeId: string): Promise<UserStatsResponse> {
@@ -96,8 +111,6 @@ export class GithubService {
     ]);
 
     const contributor = repoContributorResponse.data.find((contributor: SearchContributor) => contributor.node_id === userNodeId);
-
-
 
     return { status: HttpStatus.OK, data: this.githubMapper.mapAdditionalStatsToContributor(contributor, userContributionsResp) as Contributor };
   }
@@ -128,6 +141,7 @@ export class GithubService {
     let issuesClosed = 0;
     let prsSubmitted = 0;
     let prsApproved = 0;
+    let userName = '';
 
     // Helper: window check
     const within = (iso?: string | null) =>
@@ -162,6 +176,7 @@ export class GithubService {
 
       const repoNode = data?.data?.repository;
       const userNode = data?.data?.node;
+      userName = userNode?.name;
 
       // A) Commit history → additions/deletions
       const hist =
@@ -271,7 +286,7 @@ export class GithubService {
       if (!histHasNext && !issuesHasNext && !reviewsHasNext) break;
     }
 
-    return { additions, deletions, issuesOpened, issuesClosed, prsSubmitted, prsApproved } as SearchStats;
+    return { additions, deletions, issuesOpened, issuesClosed, prsSubmitted, prsApproved, userName } as SearchStats;
   }
 
 }
