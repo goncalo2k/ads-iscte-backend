@@ -9,7 +9,7 @@ import { GithubMapperService } from './github-mapper.service';
 import { SearchContributor } from 'src/models/search-user.model';
 import { Contributor } from 'src/models/contributor.model';
 import { SearchStats } from 'src/models/search-stats.model';
-import { USER_REPO_ACTIVITY_AND_HISTORY_QUERY } from 'src/queries/commit-history-query';
+import { USER_REPO_STATS_QUERY } from 'src/queries/commit-history-query';
 
 @Injectable()
 export class GithubService {
@@ -90,7 +90,7 @@ export class GithubService {
         headers: { Authorization: `Bearer ${accessToken}` },
       }),
       this.getRepoContributors(accessToken, repo),
-      axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/contributors?per_page=1&anon=true`, {
+      axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/contributors?per_page=1`/*TODO: Explain why no &anon=true */, {
         headers: { Authorization: `Bearer ${accessToken}` },
       }),
       axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/commits?per_page=1`, {
@@ -145,180 +145,6 @@ export class GithubService {
     return { status: HttpStatus.OK, data: this.githubMapper.mapAdditionalStatsToContributor(contributor, userContributionsResp) as Contributor };
   }
 
-  private async getUserRepoContributionStats(
-    accessToken: string,
-    owner: string,
-    repo: string,
-    userNodeId: string,
-    options?: { since?: string; until?: string; branch?: string }
-  ): Promise<SearchStats> {
-    const { since, until, branch } = options ?? {};
-    const repoFullName = `${owner}/${repo}`;
-
-    // Branch selection (history)
-    const qualifiedRef = branch ? `refs/heads/${branch}` : 'refs/heads/ignored';
-    const useBranch = Boolean(branch);
-
-    // Cursors for the three connections we paginate
-    let afterHistory: string | null = null;
-    let afterClosedIssues: string | null = null;
-    let afterReviews: string | null = null;
-
-    // Accumulators
-    let additions = 0;
-    let deletions = 0;
-    let issuesOpened = 0;
-    let issuesClosed = 0;
-    let prsSubmitted = 0;
-    let prsApproved = 0;
-    let userName = '';
-
-    // Helper: window check
-    const within = (iso?: string | null) =>
-      !!iso &&
-      (!since || iso >= since) &&
-      (!until || iso <= until!);
-
-    for (; ;) {
-      const { data } = await axios.post(
-        this.cfg.get('GITHUB_GRAPHQL_URL')!,
-        {
-          query: USER_REPO_ACTIVITY_AND_HISTORY_QUERY,
-          variables: {
-            owner,
-            repo,
-            authorId: userNodeId,
-            from: since ?? null,
-            to: until ?? null,
-            afterHistory,
-            afterClosedIssues,
-            afterReviews,
-            useBranch,
-            qualifiedRef,
-          },
-        },
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-
-      if (data.errors?.length) {
-        throw new Error(`GraphQL failed: ${JSON.stringify(data.errors)}`);
-      }
-
-      const repoNode = data?.data?.repository;
-      const userNode = data?.data?.node;
-      userName = userNode?.name;
-
-      // A) Commit history → additions/deletions
-      const hist =
-        repoNode?.ref?.target?.history ??
-        repoNode?.defaultBranchRef?.target?.history ??
-        null;
-
-      if (hist?.nodes?.length) {
-        for (const n of hist.nodes as Array<{ additions?: number; deletions?: number }>) {
-          additions += n.additions ?? 0;
-          deletions += n.deletions ?? 0;
-        }
-      }
-
-      // B) Issues closed by the user (ClosedEvent.actor)
-      const closedIssuesConn = repoNode?.closedIssues;
-      if (closedIssuesConn?.nodes?.length) {
-        for (const issue of closedIssuesConn.nodes as Array<{
-          closedAt?: string | null;
-          timelineItems?: {
-            nodes?: Array<{
-              __typename?: string;
-              createdAt?: string;
-              actor?: { __typename?: string; id?: string | null } | null;
-            }>;
-          };
-        }>) {
-          const events = issue.timelineItems?.nodes ?? [];
-          const closedByUser = events.some(
-            (ev) =>
-              ev?.__typename === 'ClosedEvent' &&
-              ev?.actor?.__typename === 'User' &&
-              ev?.actor?.id === userNodeId
-          );
-
-          // You can use issue.closedAt or ClosedEvent.createdAt for the window; closedAt is fine.
-          if (closedByUser && within(issue.closedAt)) {
-            issuesClosed += 1;
-          }
-        }
-      }
-
-      // C) User contributions window → issues opened, PRs submitted, PR reviews (approved)
-      const cc = userNode?.contributionsCollection;
-
-      // Issues opened (repo bucket)
-      if (cc?.issueContributionsByRepository?.length) {
-        const bucket = cc.issueContributionsByRepository.find(
-          (b: any) => b.repository?.nameWithOwner === repoFullName
-        );
-        if (bucket?.contributions?.totalCount) {
-          issuesOpened = bucket.contributions.totalCount;
-        }
-      }
-
-      // PRs submitted (opened)
-      if (cc?.pullRequestContributionsByRepository?.length) {
-        const bucket = cc.pullRequestContributionsByRepository.find(
-          (b: any) => b.repository?.nameWithOwner === repoFullName
-        );
-        if (bucket?.contributions?.totalCount) {
-          prsSubmitted = bucket.contributions.totalCount;
-        }
-      }
-
-      // PR reviews → count APPROVED in repo & within window
-      const reviewBuckets = cc?.pullRequestReviewContributionsByRepository ?? [];
-      const repoReviewBucket = reviewBuckets.find(
-        (b: any) => b.repository?.nameWithOwner === repoFullName
-      );
-      const reviewNodes =
-        repoReviewBucket?.contributions?.nodes as
-        | Array<{
-          pullRequestReview?: {
-            state?: string;
-            submittedAt?: string;
-            pullRequest?: { repository?: { nameWithOwner?: string } };
-          } | null;
-        }>
-        | undefined;
-
-      if (reviewNodes?.length) {
-        for (const n of reviewNodes) {
-          const r = n?.pullRequestReview;
-          if (!r) continue;
-          if (
-            r.state === 'APPROVED' &&
-            r.pullRequest?.repository?.nameWithOwner === repoFullName &&
-            within(r.submittedAt ?? null)
-          ) {
-            prsApproved += 1;
-          }
-        }
-      }
-
-      // Advance cursors
-      const histHasNext = Boolean(hist?.pageInfo?.hasNextPage);
-      if (histHasNext) afterHistory = hist!.pageInfo!.endCursor;
-
-      const issuesHasNext = Boolean(closedIssuesConn?.pageInfo?.hasNextPage);
-      if (issuesHasNext) afterClosedIssues = closedIssuesConn!.pageInfo!.endCursor;
-
-      const reviewsHasNext = Boolean(repoReviewBucket?.contributions?.pageInfo?.hasNextPage);
-      if (reviewsHasNext) afterReviews = repoReviewBucket!.contributions!.pageInfo!.endCursor;
-
-      // Stop when all drained
-      if (!histHasNext && !issuesHasNext && !reviewsHasNext) break;
-    }
-
-    return { additions, deletions, issuesOpened, issuesClosed, prsSubmitted, prsApproved, userName } as SearchStats;
-  }
-
   private parseLastPageFromLink(linkHeader?: string): number | null {
     if (!linkHeader) return null;
     const parts = linkHeader.split(",");
@@ -343,4 +169,159 @@ export class GithubService {
     const lastPage = this.parseLastPageFromLink(link);
     return lastPage ?? 0;
   }
+
+
+  private async getUserRepoContributionStats(
+    accessToken: string,
+    owner: string,
+    repo: string,
+    userNodeId: string,
+    options?: { since?: string; until?: string; branch?: string }
+  ): Promise<SearchStats> {
+    const { since, until, branch } = options ?? {};
+    const repoFullName = `${owner}/${repo}`;
+
+    const useBranch = Boolean(branch);
+    const qualifiedRef = branch ? `refs/heads/${branch}` : 'refs/heads/ignored';
+
+    // If caller doesn’t pass dates, you should consider defaulting to a bounded window,
+    // otherwise commit history can still be enormous.
+    const fromIso = since ?? null;
+    const toIso = until ?? null;
+
+    // 1) Resolve login once (needed for search qualifiers)
+    // You can also cache this (nodeId -> login) in-memory/redis for huge wins.
+    const userLogin = await this.getUserLoginFromNodeId(accessToken, userNodeId);
+
+    // 2) Build search queries (counts only, no nodes)
+    const dateRange = (qual: string) => {
+      if (since && until) return `${qual}:${since}..${until}`;
+      if (since && !until) return `${qual}:>=${since}`;
+      if (!since && until) return `${qual}:<=${until}`;
+      return ''; // no date bound
+    };
+
+    const qIssuesOpened = [
+      `repo:${repoFullName}`,
+      `is:issue`,
+      `author:${userLogin}`,
+      dateRange('created'),
+    ].filter(Boolean).join(' ');
+
+    const qIssuesClosed = [
+      `repo:${repoFullName}`,
+      `is:issue`,
+      `is:closed`,
+      `closed-by:${userLogin}`,
+      dateRange('closed'),
+    ].filter(Boolean).join(' ');
+
+    const qPrsSubmitted = [
+      `repo:${repoFullName}`,
+      `is:pr`,
+      `author:${userLogin}`,
+      dateRange('created'),
+    ].filter(Boolean).join(' ');
+
+    // Note: search filters approvals via review:approved + reviewed-by:LOGIN
+    // There isn’t a perfect “submittedAt” qualifier; updated is commonly used as a proxy.
+    const qPrsApproved = [
+      `repo:${repoFullName}`,
+      `is:pr`,
+      `review:approved`,
+      `reviewed-by:${userLogin}`,
+      dateRange('updated'),
+    ].filter(Boolean).join(' ');
+
+    // 3) Now only paginate commit history
+    let afterHistory: string | null = null;
+
+    let additions = 0;
+    let deletions = 0;
+
+    let issuesOpened = 0;
+    let issuesClosed = 0;
+    let prsSubmitted = 0;
+    let prsApproved = 0;
+    let userName = '';
+
+    for (; ;) {
+      const { data } = await axios.post(
+        this.cfg.get('GITHUB_GRAPHQL_URL')!,
+        {
+          query: USER_REPO_STATS_QUERY,
+          variables: {
+            owner,
+            repo,
+            authorId: userNodeId,
+            qIssuesOpened,
+            qIssuesClosed,
+            qPrsSubmitted,
+            qPrsApproved,
+            useBranch,
+            qualifiedRef,
+            afterHistory,
+            from: fromIso,
+            to: toIso,
+          },
+        },
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      if (data.errors?.length) {
+        throw new Error(`GraphQL failed: ${JSON.stringify(data.errors)}`);
+      }
+
+      const payload = data?.data;
+
+      // Set once (counts won’t change between pages; but safe to assign each loop)
+      userName = payload?.node?.name ?? userName;
+      issuesOpened = payload?.issuesOpened?.issueCount ?? issuesOpened;
+      issuesClosed = payload?.issuesClosed?.issueCount ?? issuesClosed;
+      prsSubmitted = payload?.prsSubmitted?.issueCount ?? prsSubmitted;
+      prsApproved = payload?.prsApproved?.issueCount ?? prsApproved;
+
+      const repoNode = payload?.repository;
+      const hist =
+        repoNode?.ref?.target?.history ??
+        repoNode?.defaultBranchRef?.target?.history ??
+        null;
+
+      if (hist?.nodes?.length) {
+        for (const n of hist.nodes as Array<{ additions?: number; deletions?: number }>) {
+          additions += n.additions ?? 0;
+          deletions += n.deletions ?? 0;
+        }
+      }
+
+      const hasNext = Boolean(hist?.pageInfo?.hasNextPage);
+      if (!hasNext) break;
+      afterHistory = hist.pageInfo.endCursor;
+    }
+
+    return { additions, deletions, issuesOpened, issuesClosed, prsSubmitted, prsApproved, userName } as SearchStats;
+  }
+
+  private async getUserLoginFromNodeId(accessToken: string, userNodeId: string): Promise<string> {
+    const { data } = await axios.post(
+      this.cfg.get('GITHUB_GRAPHQL_URL')!,
+      {
+        query: `
+        query($id: ID!) {
+          node(id: $id) {
+            ... on User { login }
+          }
+        }
+      `,
+        variables: { id: userNodeId },
+      },
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+
+    if (data.errors?.length) throw new Error(`GraphQL failed: ${JSON.stringify(data.errors)}`);
+    const login = data?.data?.node?.login;
+    if (!login) throw new Error(`Could not resolve login from nodeId=${userNodeId}`);
+    return login;
+  }
+
 }
