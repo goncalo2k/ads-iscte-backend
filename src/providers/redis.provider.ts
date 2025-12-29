@@ -12,10 +12,11 @@ export const redisProvider = {
       keepAlive: 10_000,
       connectTimeout: 10_000,
 
-      retryStrategy: (times) => Math.min(times * 200, 2_000),
+      retryStrategy: (times) => Math.min(times * 2, 2),
 
       maxRetriesPerRequest: 2,
       enableReadyCheck: true,
+      lazyConnect: true,
 
       ...(isTls ? { tls: { servername: new URL(url).hostname } } : {}),
     };

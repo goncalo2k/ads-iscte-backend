@@ -17,4 +17,7 @@ export interface Repository {
     watchers_count?: number;
     contributors_count?: number;
     contributors?: Contributor[];
+    open_issues?: number;
+    open_prs?: number;
+    commit_count?: number;
 }

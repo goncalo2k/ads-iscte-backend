@@ -8,8 +8,8 @@ import { User } from 'src/models/user.model';
 import { GithubMapperService } from './github-mapper.service';
 import { SearchContributor } from 'src/models/search-user.model';
 import { Contributor } from 'src/models/contributor.model';
-import { USER_REPO_ACTIVITY_AND_HISTORY_QUERY } from 'src/queries/commit-history-query';
 import { SearchStats } from 'src/models/search-stats.model';
+import { USER_REPO_ACTIVITY_AND_HISTORY_QUERY } from 'src/queries/commit-history-query';
 
 @Injectable()
 export class GithubService {
@@ -73,16 +73,37 @@ export class GithubService {
   }
 
   async getRepoInfo(accessToken: string, repo: string): Promise<RepositorySearchResponse> {
-    const [repoInfoResponse, repoContributorsResponse] = await Promise.all([
+    const [repoInfoResponse, repoContributorsResponse, firstContributorResponse, firstCommitResponse, openPRsResponse, openIssuesResponse] = await Promise.all([
       axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       }),
       axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/contributors`, {
         headers: { Authorization: `Bearer ${accessToken}` },
-      })
+      }),
+      axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/contributors?per_page=1&anon=true`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/commits?per_page=1`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/search/issues?q=repo:${repo}+is:pr+is:open`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/search/issues?q=repo:${repo}+type:issue+is:open`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
     ]);
+
     const repoInfo = repoInfoResponse.data as SearchRepository;
     const contributors = (repoContributorsResponse.data) as SearchContributor[];
+
+    const openPrs = openPRsResponse.data.total_count;
+    
+    const openIssues = openIssuesResponse.data.total_count;
+
+    const totalContributors = this.getTotalContributors(firstContributorResponse.headers?.link, contributors);
+
+    const totalCommits = this.getTotalCommits(firstCommitResponse.headers?.link);
 
     const contributorsWithNames = await Promise.all(
       contributors.map(async (c) => {
@@ -98,8 +119,7 @@ export class GithubService {
       })
     );
 
-
-    return { status: HttpStatus.OK, data: this.githubMapper.mapSearchRepoToInternalRepository(repoInfo, contributorsWithNames) };
+    return { status: HttpStatus.OK, data: this.githubMapper.mapSearchRepoToInternalRepository(repoInfo, contributorsWithNames, totalContributors, totalCommits, openPrs,openIssues) };
   }
 
   async getUserDashboard(accessToken: string, owner: string, repo: string, userNodeId: string): Promise<UserStatsResponse> {
@@ -289,4 +309,28 @@ export class GithubService {
     return { additions, deletions, issuesOpened, issuesClosed, prsSubmitted, prsApproved, userName } as SearchStats;
   }
 
+  private parseLastPageFromLink(linkHeader?: string): number | null {
+    if (!linkHeader) return null;
+    const parts = linkHeader.split(",");
+    const last = parts.find(p => p.includes('rel="last"'));
+    if (!last) return null;
+
+    const urlMatch = last.match(/<([^>]+)>/);
+    if (!urlMatch) return null;
+
+    const url = new URL(urlMatch[1]);
+    const page = url.searchParams.get("page");
+    return page ? Number(page) : null;
+  }
+
+  private getTotalContributors(link: string, contributors: SearchContributor[]): number {
+    const lastPage = this.parseLastPageFromLink(link);
+    return lastPage ??
+      (Array.isArray(contributors) ? contributors.length : 0);
+  }
+
+  private getTotalCommits(link: string): number {
+    const lastPage = this.parseLastPageFromLink(link);
+    return lastPage ?? 0;
+  }
 }

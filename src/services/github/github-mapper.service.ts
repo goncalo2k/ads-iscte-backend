@@ -8,7 +8,7 @@ import { SearchContributor } from 'src/models/search-user.model';
 
 @Injectable()
 export class GithubMapperService {
-  mapSearchRepoToInternalRepository(searchRepo: SearchRepository, contributors: SearchContributor[]): Repository {
+  mapSearchRepoToInternalRepository(searchRepo: SearchRepository, contributors: SearchContributor[], totalContributors: number, totalCommits: number, openPrs: number, openIssues: number): Repository {
     return {
       id: searchRepo.id,
       name: searchRepo.name,
@@ -24,7 +24,11 @@ export class GithubMapperService {
       forks_count: searchRepo.forks_count,
       stargazers_count: searchRepo.stargazers_count,
       watchers_count: searchRepo.watchers_count,
+      open_issues: openIssues,
+      open_prs: openPrs,
       contributors: contributors.map(contributor => this.mapContributorToInternal(contributor)),
+      contributors_count: totalContributors,
+      commit_count: totalCommits
     };
   }
 
@@ -38,6 +42,7 @@ export class GithubMapperService {
       updated_at: searchRepo.updated_at,
       size: searchRepo.size,
       language: searchRepo.language,
+      open_issues: searchRepo.open_issues,
     };
   }
 
@@ -59,10 +64,6 @@ export class GithubMapperService {
       name: userContributionsResp.userName,
       additions: userContributionsResp.additions,
       deletions: userContributionsResp.deletions,
-      issuesOpened: userContributionsResp.issuesOpened,
-      issuesClosed: userContributionsResp.issuesClosed,
-      prsSubmitted: userContributionsResp.prsSubmitted,
-      prsApproved: userContributionsResp.prsApproved,
     };
   }
 }

@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { AuthProvider } from 'src/models/token-store.model';
 import { GithubService } from '../github/github.service';
 import { Cookie, SameSitePolicy } from 'src/models/cookie.model';
+import { SessionStatusResponse } from 'src/models/api.model';
 
 
 @Injectable()
@@ -100,7 +101,7 @@ export class AuthService {
     }
   }
 
-  async getStatus(req: Request) {
+  async getStatus(req: Request): Promise<SessionStatusResponse> {
     const cookieName = this.cfg.get('COOKIE_NAME')!;
     const raw = req.cookies?.[cookieName];
     if (!raw) throw new UnauthorizedException('Missing auth cookie');
@@ -119,8 +120,10 @@ export class AuthService {
 
     return {
       status: HttpStatus.OK,
-      user: { id: payload.sub, username: payload.username },
-      exp: payload.exp ?? null,
+      data: {
+        user: { id: payload.sub, login: payload.username },
+        expirationTime: payload.exp ?? null
+      },
     };
   }
 }
