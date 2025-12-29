@@ -13,6 +13,8 @@ export interface RepositorySearchResponse extends ApiResponse<Repository> { }
 
 export interface UserStatsResponse extends ApiResponse<Contributor> { }
 
+export interface ContributorsResponse extends ApiResponse<Contributor[]> { }
+
 export interface ApiResponse<T> {
   status?: HttpStatus;
   data?: T;

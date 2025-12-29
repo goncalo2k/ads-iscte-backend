@@ -1,7 +1,7 @@
 import { Controller, Get, HttpStatus, Param, Query, UseGuards } from '@nestjs/common';
 import { Sid } from 'src/decorators/sid.decorator';
 import { JwtCookieGuard } from 'src/guards/auth.guard';
-import { DashboardResponse, RepositorySearchResponse, UserRepositoryResponse, UserStatsResponse } from 'src/models/api.model';
+import { ContributorsResponse, DashboardResponse, RepositorySearchResponse, UserRepositoryResponse, UserStatsResponse } from 'src/models/api.model';
 import { GithubService } from 'src/services/github/github.service';
 import { TokenStoreService } from 'src/services/token-store/token-store.service';
 
@@ -31,6 +31,13 @@ export class GithubController {
     const session = await this.store.getSession(sid);
     if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
     return await this.githubService.getRepoInfo(session.accessToken!, owner + '/' + repo);
+  }
+
+  @Get('dashboard/repository/:owner/:repo/contributors')
+  async getRepoContributors(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Query('pageOffset') pageOffset: number): Promise<ContributorsResponse> {
+    const session = await this.store.getSession(sid);
+    if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
+    return await this.githubService.getRepoContributors(session.accessToken!, owner + '/' + repo, pageOffset);
   }
 
   @Get('dashboard/repository/:owner/:repo/contributors/:userNodeId')

@@ -8,7 +8,7 @@ import { SearchContributor } from 'src/models/search-user.model';
 
 @Injectable()
 export class GithubMapperService {
-  mapSearchRepoToInternalRepository(searchRepo: SearchRepository, contributors: SearchContributor[], totalContributors: number, totalCommits: number, openPrs: number, openIssues: number): Repository {
+  mapSearchRepoToInternalRepository(searchRepo: SearchRepository, contributors: Contributor[], totalContributors: number, totalCommits: number, openPrs: number, openIssues: number): Repository {
     return {
       id: searchRepo.id,
       name: searchRepo.name,
@@ -26,7 +26,7 @@ export class GithubMapperService {
       watchers_count: searchRepo.watchers_count,
       open_issues: openIssues,
       open_prs: openPrs,
-      contributors: contributors.map(contributor => this.mapContributorToInternal(contributor)),
+      contributors: contributors,
       contributors_count: totalContributors,
       commit_count: totalCommits
     };

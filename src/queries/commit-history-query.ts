@@ -1,5 +1,3 @@
-// github.queries.ts
-
 // Combined query: commit history (additions/deletions), issues closed (via ClosedEvent),
 // issues opened, PRs submitted, PR reviews (approved) — all repo/user scoped.
 export const USER_REPO_ACTIVITY_AND_HISTORY_QUERY = `
