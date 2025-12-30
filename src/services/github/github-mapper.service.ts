@@ -42,6 +42,7 @@ export class GithubMapperService {
       updated_at: searchRepo.updated_at,
       size: searchRepo.size,
       language: searchRepo.language,
+      stargazers_count: searchRepo.stargazers_count,
       open_issues: searchRepo.open_issues,
     };
   }
