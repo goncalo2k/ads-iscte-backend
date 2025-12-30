@@ -1,7 +1,7 @@
 import { Controller, Get, HttpStatus, Param, Query, UseGuards } from '@nestjs/common';
 import { Sid } from 'src/decorators/sid.decorator';
 import { JwtCookieGuard } from 'src/guards/auth.guard';
-import { ContributorsResponse, DashboardResponse, RepositorySearchResponse, UserRepositoryResponse, UserStatsResponse } from 'src/models/api.model';
+import { ContributorsResponse, DashboardResponse, RepositorySearchResponse, UserActivityResponse, UserRepositoryResponse, UserStatsResponse } from 'src/models/api.model';
 import { GithubService } from 'src/services/github/github.service';
 import { TokenStoreService } from 'src/services/token-store/token-store.service';
 
@@ -34,10 +34,10 @@ export class GithubController {
   }
 
   @Get('dashboard/repository/:owner/:repo/contributors')
-  async getRepoContributors(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Query('pageOffset') pageOffset: number): Promise<ContributorsResponse> {
+  async getRepoContributors(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Query('page') page: number): Promise<ContributorsResponse> {
     const session = await this.store.getSession(sid);
     if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
-    return await this.githubService.getRepoContributors(session.accessToken!, owner + '/' + repo, pageOffset);
+    return await this.githubService.getRepoContributors(session.accessToken!, owner + '/' + repo, page);
   }
 
   @Get('dashboard/repository/:owner/:repo/contributors/:userNodeId')
@@ -45,5 +45,12 @@ export class GithubController {
     const session = await this.store.getSession(sid);
     if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
     return await this.githubService.getUserDashboard(session.accessToken!, owner, repo, userNodeId);
+  }
+
+  @Get('dashboard/repository/:owner/:repo/contributors/:userNodeId/activity')
+  async getUserActivity(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Param('username') username: string): Promise<UserActivityResponse> {
+    const session = await this.store.getSession(sid);
+    if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
+    return await this.githubService.getUserActivity(session.accessToken!, owner, repo, username);
   }
 }

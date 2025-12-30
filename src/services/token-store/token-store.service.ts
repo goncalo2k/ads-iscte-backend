@@ -20,11 +20,12 @@ export class TokenStoreService {
 
   private kSess = (sid: string) => `${this.ns}:sess:${sid}`;
   private kState = (state: string) => `${this.ns}:oauth_state:${state}`;
+  private kStats = (state: string) => `${this.ns}:activity_stats:${state}`;
 
+  //Session management
   async setSession(sid: string, data: StoredToken): Promise<void> {
     await this.redis.set(this.kSess(sid), JSON.stringify(data), 'EX', this.ttl);
   }
-
   async getSession(sid: string): Promise<StoredToken | null> {
     const raw = await this.redis.get(this.kSess(sid));
     return raw ? (JSON.parse(raw) as StoredToken) : null;
@@ -45,5 +46,15 @@ export class TokenStoreService {
     if (!exists) return false;
     await this.redis.del(this.kState(state));
     return true;
+  };
+
+  // Stats
+  async setRepoStats(repo: string, data: any): Promise<void> {
+    await this.redis.set(this.kStats(repo), JSON.stringify(data), 'EX', this.ttl);
+  }
+
+  async getRepoStats(repo: string): Promise<any | null> {
+    const raw = await this.redis.get(this.kStats(repo));
+    return raw ? (JSON.parse(raw) as any) : null;
   };
 }

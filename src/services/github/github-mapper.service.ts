@@ -47,7 +47,7 @@ export class GithubMapperService {
     };
   }
 
-  mapContributorToInternal(contributor: SearchContributor): Contributor {
+  mapContributorToInternal(contributor: SearchContributor, name: string | null = null): Contributor {
     return {
       id: contributor.id,
       node_id: contributor.node_id,
