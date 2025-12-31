@@ -8,18 +8,21 @@ import { User } from 'src/models/user.model';
 import { GithubMapperService } from './github-mapper.service';
 import { SearchContributor } from 'src/models/search-user.model';
 import { Contributor } from 'src/models/contributor.model';
-import { SearchStats } from 'src/models/search-stats.model';
-import { USER_REPO_STATS_QUERY } from 'src/queries/commit-history-query';
+
+import { USER_ISSUES_AND_PRS_STATS_QUERY, USER_REPO_COMMIT_HISTORY_QUERY } from 'src/queries/commit-history-query';
 import { TokenStoreService } from '../token-store/token-store.service';
 import { SearchActivityStats } from 'src/models/search-activity-stats.model';
 import { PageEnum } from 'src/enums/page.enum';
+import { GraphQLService } from '../graphql/graphql.service';
+import { RepoStatsOptions, SearchStats } from 'src/models/search-stats.model';
+import { SearchBasicStats, SearchBasicStatsPage } from 'src/models/search-basic-stats.model';
 
 @Injectable()
 export class GithubService {
-  constructor(private cfg: ConfigService, private githubMapper: GithubMapperService, private tokenService: TokenStoreService) { }
+  constructor(private cfg: ConfigService, private githubMapper: GithubMapperService, private tokenService: TokenStoreService, private graphqlService: GraphQLService) { }
   async getUser(accessToken: string): Promise<User> {
     const me = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/user`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}`, },
     });
     const emails = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/user/emails`, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -78,7 +81,7 @@ export class GithubService {
   async getRepoContributors(accessToken: string, repo: string, page: number = 0): Promise<ContributorsResponse> {
     const response = await axios.get<SearchContributor[]>(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${repo}/contributors`, {
       headers: { Authorization: `Bearer ${accessToken}` },
-      params: { page: page, perPage: process!.env!.GITHUB_API_PAGE_SIZE }
+      params: { page: page, perPage: this.cfg.get('GITHUB_API_PAGE_SIZE')! }
     });
 
     const contributors: Contributor[] = await Promise.all(
@@ -142,17 +145,73 @@ export class GithubService {
     return { status: HttpStatus.OK, data: this.githubMapper.mapSearchRepoToInternalRepository(repoInfo, contributors, totalContributors, totalCommits, openPrs, openIssues) };
   }
 
-  async getUserDashboard(accessToken: string, owner: string, repo: string, userNodeId: string): Promise<UserStatsResponse> {
-    const [userContributionsResp, repoContributorResponse] = await Promise.all([
-      this.getUserRepoContributionStats(accessToken, owner, repo, userNodeId, {}), //TODO: ADD DATE WINDOW!
-      axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${owner}/${repo}/contributors`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }),
-    ]);
+  async getUserRepoStats(
+    accessToken: string,
+    owner: string,
+    repo: string,
+    userNodeId: string,
+    options?: RepoStatsOptions,
+  ): Promise<UserStatsResponse> {
+    const { since, until } = options ?? {};
 
-    const contributor = repoContributorResponse.data.find((contributor: SearchContributor) => contributor.node_id === userNodeId);
+    // Resolve login once (needed for search qualifiers). You can cache this aggressively.
+    const userLogin = await this.getUserLoginFromNodeId(accessToken, userNodeId);
 
-    return { status: HttpStatus.OK, data: this.githubMapper.mapAdditionalStatsToContributor(contributor, userContributionsResp) as Contributor };
+    const { qIssuesOpened, qIssuesClosed, qPrsSubmitted, qPrsApproved } =
+      this.buildIssuesAndPrsSearchQueries({ owner, repo, userLogin, since, until });
+
+    const variables = {
+      owner,
+      repo,
+      authorId: userNodeId,
+      qIssuesOpened,
+      qIssuesClosed,
+      qPrsSubmitted,
+      qPrsApproved,
+    };
+
+    const payload: any = await this.graphqlService.getFromGraphQL(
+      accessToken,
+      USER_ISSUES_AND_PRS_STATS_QUERY,
+      variables,
+    );
+
+    return {
+      status: HttpStatus.OK,
+      data: {
+        issuesOpened: payload?.issuesOpened?.issueCount ?? 0,
+        issuesClosed: payload?.issuesClosed?.issueCount ?? 0,
+        prsSubmitted: payload?.prsSubmitted?.issueCount ?? 0,
+        prsApproved: payload?.prsApproved?.issueCount ?? 0,
+      }
+    };
+  }
+
+  async getUserRepoSlowStats(
+    accessToken: string,
+    owner: string,
+    repo: string,
+    userNodeId: string,
+    options?: RepoStatsOptions & { maxPages?: number },
+  ): Promise<UserStatsResponse> {
+    let afterHistory: string | null = null;
+
+    let additions = 0;
+    let deletions = 0;
+
+    for (; ;) {
+      const pageResp = await this.getUserRepoSlowStatsPage(accessToken, owner, repo, userNodeId, {
+        ...options,
+        afterHistory,
+      });
+
+      additions += pageResp.additions! || 0;
+      deletions += pageResp.deletions! || 0;
+
+      if (!pageResp.hasNextPage) {
+        return { status: HttpStatus.OK, data: { additions, deletions } as Partial<SearchBasicStats> };
+      }
+    }
   }
 
   async getUserActivity(accessToken: string, owner: string, repo: string, username: string): Promise<UserActivityResponse> {
@@ -176,35 +235,72 @@ export class GithubService {
     return statsResponse;
   }
 
-  private async getUserRepoContributionStats(
+  private async getUserRepoSlowStatsPage(
     accessToken: string,
     owner: string,
     repo: string,
     userNodeId: string,
-    options?: { since?: string; until?: string; branch?: string }
-  ): Promise<SearchStats> {
-    const { since, until, branch } = options ?? {};
-    const repoFullName = `${owner}/${repo}`;
+    options?: RepoStatsOptions & { afterHistory?: string | null },
+  ): Promise<Partial<SearchBasicStatsPage>> {
+    const { since, until, branch, afterHistory } = options ?? {};
 
     const useBranch = Boolean(branch);
     const qualifiedRef = branch ? `refs/heads/${branch}` : 'refs/heads/ignored';
 
-    // If caller doesn’t pass dates, you should consider defaulting to a bounded window,
-    // otherwise commit history can still be enormous.
+    // Note: GitTimestamp expects ISO-ish; you’re passing YYYY-MM-DD which is usually OK,
+    // but you can also pass full ISO strings if you prefer.
     const fromIso = since ?? null;
     const toIso = until ?? null;
 
-    // 1) Resolve login once (needed for search qualifiers)
-    // You can also cache this (nodeId -> login) in-memory/redis for huge wins.
-    const userLogin = await this.getUserLoginFromNodeId(accessToken, userNodeId);
-
-    // 2) Build search queries (counts only, no nodes)
-    const dateRange = (qual: string) => {
-      if (since && until) return `${qual}:${since}..${until}`;
-      if (since && !until) return `${qual}:>=${since}`;
-      if (!since && until) return `${qual}:<=${until}`;
-      return ''; // no date bound
+    const variables = {
+      owner,
+      repo,
+      authorId: userNodeId,
+      useBranch,
+      qualifiedRef,
+      afterHistory: afterHistory ?? null,
+      from: fromIso,
+      to: toIso,
     };
+
+    const payload: any = await this.graphqlService.getFromGraphQL(
+      accessToken,
+      USER_REPO_COMMIT_HISTORY_QUERY,
+      variables,
+    );
+
+    const repoNode = payload?.repository;
+    const hist =
+      repoNode?.ref?.target?.history ??
+      repoNode?.defaultBranchRef?.target?.history ??
+      null;
+
+    let additionsDelta = 0;
+    let deletionsDelta = 0;
+
+    if (hist?.nodes?.length) {
+      for (const n of hist.nodes as Array<{ additions?: number; deletions?: number }>) {
+        additionsDelta += n.additions ?? 0;
+        deletionsDelta += n.deletions ?? 0;
+      }
+    }
+
+    return {
+      additions: additionsDelta,
+      deletions: deletionsDelta,
+    };
+  }
+
+  private buildIssuesAndPrsSearchQueries(params: {
+    owner: string;
+    repo: string;
+    userLogin: string;
+    since?: string;
+    until?: string;
+  }): { qIssuesOpened: string, qIssuesClosed: string, qPrsSubmitted: string, qPrsApproved: string } {
+    const { owner, repo, userLogin, since, until } = params;
+    const repoFullName = `${owner}/${repo}`;
+    const dateRange = this.buildDateRangeQualifier(since, until);
 
     const qIssuesOpened = [
       `repo:${repoFullName}`,
@@ -228,8 +324,7 @@ export class GithubService {
       dateRange('created'),
     ].filter(Boolean).join(' ');
 
-    // Note: search filters approvals via review:approved + reviewed-by:LOGIN
-    // There isn’t a perfect “submittedAt” qualifier; updated is commonly used as a proxy.
+    // Proxy for approvals (not perfect for strict "approvedAt"):
     const qPrsApproved = [
       `repo:${repoFullName}`,
       `is:pr`,
@@ -238,73 +333,7 @@ export class GithubService {
       dateRange('updated'),
     ].filter(Boolean).join(' ');
 
-    // 3) Now only paginate commit history
-    let afterHistory: string | null = null;
-
-    let additions = 0;
-    let deletions = 0;
-
-    let issuesOpened = 0;
-    let issuesClosed = 0;
-    let prsSubmitted = 0;
-    let prsApproved = 0;
-    let userName = '';
-
-    for (; ;) {
-      const { data } = await axios.post(
-        this.cfg.get('GITHUB_GRAPHQL_URL')!,
-        {
-          query: USER_REPO_STATS_QUERY,
-          variables: {
-            owner,
-            repo,
-            authorId: userNodeId,
-            qIssuesOpened,
-            qIssuesClosed,
-            qPrsSubmitted,
-            qPrsApproved,
-            useBranch,
-            qualifiedRef,
-            afterHistory,
-            from: fromIso,
-            to: toIso,
-          },
-        },
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-
-      if (data.errors?.length) {
-        throw new Error(`GraphQL failed: ${JSON.stringify(data.errors)}`);
-      }
-
-      const payload = data?.data;
-
-      // Set once (counts won’t change between pages; but safe to assign each loop)
-      userName = payload?.node?.name ?? userName;
-      issuesOpened = payload?.issuesOpened?.issueCount ?? issuesOpened;
-      issuesClosed = payload?.issuesClosed?.issueCount ?? issuesClosed;
-      prsSubmitted = payload?.prsSubmitted?.issueCount ?? prsSubmitted;
-      prsApproved = payload?.prsApproved?.issueCount ?? prsApproved;
-
-      const repoNode = payload?.repository;
-      const hist =
-        repoNode?.ref?.target?.history ??
-        repoNode?.defaultBranchRef?.target?.history ??
-        null;
-
-      if (hist?.nodes?.length) {
-        for (const n of hist.nodes as Array<{ additions?: number; deletions?: number }>) {
-          additions += n.additions ?? 0;
-          deletions += n.deletions ?? 0;
-        }
-      }
-
-      const hasNext = Boolean(hist?.pageInfo?.hasNextPage);
-      if (!hasNext) break;
-      afterHistory = hist.pageInfo.endCursor;
-    }
-
-    return { additions, deletions, issuesOpened, issuesClosed, prsSubmitted, prsApproved, userName } as SearchStats;
+    return { qIssuesOpened, qIssuesClosed, qPrsSubmitted, qPrsApproved };
   }
 
   private async getUserLoginFromNodeId(accessToken: string, userNodeId: string): Promise<string> {
@@ -327,6 +356,20 @@ export class GithubService {
     const login = data?.data?.node?.login;
     if (!login) throw new Error(`Could not resolve login from nodeId=${userNodeId}`);
     return login;
+  }
+
+  private buildDateRangeQualifier(since?: string, until?: string): (qual: string) => string {
+    // GitHub search qualifiers:
+    // created:YYYY-MM-DD..YYYY-MM-DD
+    // closed:YYYY-MM-DD..YYYY-MM-DD
+    // updated:YYYY-MM-DD..YYYY-MM-DD
+    const dateRange = (qual: string) => {
+      if (since && until) return `${qual}:${since}..${until}`;
+      if (since && !until) return `${qual}:>=${since}`;
+      if (!since && until) return `${qual}:<=${until}`;
+      return '';
+    };
+    return dateRange;
   }
 
   private parsePageFromLink(linkHeader: string, pageType: PageEnum = PageEnum.LastPage): number | null {

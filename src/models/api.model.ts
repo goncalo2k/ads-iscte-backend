@@ -12,7 +12,7 @@ export interface UserRepositoryResponse extends ApiResponse<Repository[]> { }
 
 export interface RepositorySearchResponse extends ApiResponse<Repository> { }
 
-export interface UserStatsResponse extends ApiResponse<Contributor> { }
+export interface UserStatsResponse extends ApiResponse<Partial<Contributor>> { }
 
 export interface UserActivityResponse extends ApiResponse<SearchActivityStats> { }
 

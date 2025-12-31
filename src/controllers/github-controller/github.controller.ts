@@ -40,11 +40,17 @@ export class GithubController {
     return await this.githubService.getRepoContributors(session.accessToken!, owner + '/' + repo, page);
   }
 
-  @Get('dashboard/repository/:owner/:repo/contributors/:userNodeId')
-  async getUserInfoByRepo(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Param('userNodeId') userNodeId: string): Promise<UserStatsResponse> {
+  @Get('dashboard/repository/:owner/:repo/contributors/:userNodeId/stats')
+  async getUserStatsByRepo(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Param('userNodeId') userNodeId: string): Promise<UserStatsResponse> {
     const session = await this.store.getSession(sid);
     if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
-    return await this.githubService.getUserDashboard(session.accessToken!, owner, repo, userNodeId);
+    return await this.githubService.getUserRepoStats(session.accessToken!, owner, repo, userNodeId);
+  }
+  @Get('dashboard/repository/:owner/:repo/contributors/:userNodeId/slow-stats')
+  async getUserSlowStatsByRepo(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Param('userNodeId') userNodeId: string): Promise<UserStatsResponse> {
+    const session = await this.store.getSession(sid);
+    if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
+    return await this.githubService.getUserRepoSlowStats(session.accessToken!, owner, repo, userNodeId);
   }
 
   @Get('dashboard/repository/:owner/:repo/contributors/:userNodeId/activity')

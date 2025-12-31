@@ -1,5 +1,8 @@
 export type SearchStats = {
-    userName?: string;
-    additions?: number;
-    deletions?: number;
+    issuesOpened?: number;
+    issuesClosed?: number;
+    prsSubmitted?: number;
+    prsApproved?: number;
 };
+
+export type RepoStatsOptions = { since?: string; until?: string; branch?: string };

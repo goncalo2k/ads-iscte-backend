@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Contributor } from 'src/models/contributor.model';
 import { Repository } from 'src/models/repository.model';
 import { SearchRepository } from 'src/models/search-repository.model';
-import { SearchStats } from 'src/models/search-stats.model';
+import { SearchBasicStats } from 'src/models/search-basic-stats.model';
 import { SearchContributor } from 'src/models/search-user.model';
 
 @Injectable()
@@ -53,18 +53,17 @@ export class GithubMapperService {
       node_id: contributor.node_id,
       userName: contributor.login,
       avatarUrl: contributor.avatar_url,
-      name: contributor.name,
+      name: name ?? undefined,
       contributions: contributor.contributions,
     }
   }
 
-  mapAdditionalStatsToContributor(contributor: SearchContributor, userContributionsResp: SearchStats
-  ): Contributor {
+  mapAdditionalStatsToContributor(userContributionsResp: SearchBasicStats, node_id: string): Partial<Contributor> {
     return {
-      ...this.mapContributorToInternal(contributor),
+      node_id: node_id,
       name: userContributionsResp.userName,
       additions: userContributionsResp.additions,
       deletions: userContributionsResp.deletions,
-    };
+    } as Partial<Contributor>;
   }
 }
