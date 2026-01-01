@@ -49,12 +49,12 @@ export class TokenStoreService {
   };
 
   // Stats
-  async setRepoStats(repo: string, data: any): Promise<void> {
+  async setRepoStats<T>(repo: string, data: T): Promise<void> {
     await this.redis.set(this.kStats(repo), JSON.stringify(data), 'EX', this.ttl);
   }
 
-  async getRepoStats(repo: string): Promise<any | null> {
+  async getRepoStats<T>(repo: string): Promise<T | null> {
     const raw = await this.redis.get(this.kStats(repo));
-    return raw ? (JSON.parse(raw) as any) : null;
+    return raw ? (JSON.parse(raw) as T) : null;
   };
 }

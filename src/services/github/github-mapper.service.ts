@@ -5,6 +5,8 @@ import { Repository } from 'src/models/repository.model';
 import { SearchRepository } from 'src/models/search-repository.model';
 import { SearchBasicStats } from 'src/models/search-basic-stats.model';
 import { SearchContributor } from 'src/models/search-user.model';
+import { SearchActivityStats } from 'src/models/search-activity-stats.model';
+import { ActivityStats } from 'src/models/activity-stats.model';
 
 @Injectable()
 export class GithubMapperService {
@@ -65,5 +67,13 @@ export class GithubMapperService {
       additions: userContributionsResp.additions,
       deletions: userContributionsResp.deletions,
     } as Partial<Contributor>;
+  }
+
+  mapSearchActivityStatsToActivityStats(searchStats: SearchActivityStats): ActivityStats {
+    return {
+      total: searchStats.total,
+      weeks: searchStats.weeks,
+      author: this.mapContributorToInternal(searchStats.author)
+    }
   }
 }

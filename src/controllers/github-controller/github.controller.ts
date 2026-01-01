@@ -1,7 +1,7 @@
 import { Controller, Get, HttpStatus, Param, Query, UseGuards } from '@nestjs/common';
 import { Sid } from 'src/decorators/sid.decorator';
 import { JwtCookieGuard } from 'src/guards/auth.guard';
-import { ContributorsResponse, DashboardResponse, RepositorySearchResponse, UserActivityResponse, UserRepositoryResponse, UserStatsResponse } from 'src/models/api.model';
+import { ContributorsResponse, DashboardResponse, RepositorySearchResponse, UserActivityResponse, UserPrConversionResponse, UserRepositoryResponse, UserStatsResponse } from 'src/models/api.model';
 import { GithubService } from 'src/services/github/github.service';
 import { TokenStoreService } from 'src/services/token-store/token-store.service';
 
@@ -53,10 +53,17 @@ export class GithubController {
     return await this.githubService.getUserRepoSlowStats(session.accessToken!, owner, repo, userNodeId);
   }
 
-  @Get('dashboard/repository/:owner/:repo/contributors/:userNodeId/activity')
-  async getUserActivity(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Param('username') username: string): Promise<UserActivityResponse> {
+  @Get('dashboard/repository/:owner/:repo/contributors/:node_id/activity')
+  async getUserActivity(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Param('node_id') node_id: string): Promise<UserActivityResponse> {
     const session = await this.store.getSession(sid);
     if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
-    return await this.githubService.getUserActivity(session.accessToken!, owner, repo, username);
+    return await this.githubService.getUserActivity(session.accessToken!, owner, repo, node_id);
+  }
+  
+  @Get('dashboard/repository/:owner/:repo/contributors/:username/pr-conversion')
+  async getUserPrConversion(@Sid() sid: string, @Param('owner') owner: string, @Param('repo') repo: string, @Param('username') username: string): Promise<UserPrConversionResponse> {
+    const session = await this.store.getSession(sid);
+    if (!session) return { status: HttpStatus.UNAUTHORIZED, error: 'session not found' };
+    return await this.githubService.getUserPrConversion(session.accessToken!, owner, repo, username);
   }
 }

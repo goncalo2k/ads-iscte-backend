@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { ContributorsResponse, DashboardResponse, RepositorySearchResponse, UserActivityResponse, UserRepositoryResponse, UserStatsResponse } from 'src/models/api.model';
+import { ContributorsResponse, DashboardResponse, RepositorySearchResponse, UserActivityResponse, UserPrConversionResponse, UserRepositoryResponse, UserStatsResponse } from 'src/models/api.model';
 import { Repository } from 'src/models/repository.model';
 import { SearchRepository } from 'src/models/search-repository.model';
 import { User } from 'src/models/user.model';
@@ -214,25 +214,78 @@ export class GithubService {
     }
   }
 
-  async getUserActivity(accessToken: string, owner: string, repo: string, username: string): Promise<UserActivityResponse> {
-    const repoActivity = this.getRepoActivity(accessToken, owner, repo);
-    const userStats = (await repoActivity).find((entry) => entry.author.login === username);
-    return { status: HttpStatus.OK, data: userStats }
+  async getUserActivity(accessToken: string, owner: string, repo: string, node_id: string): Promise<UserActivityResponse> {
+    const repoActivity = await this.getRepoActivity(accessToken, owner, repo);
+    const userStats = repoActivity.find((entry) => entry.author.node_id === node_id);
+    if (!userStats) {
+      throw Error("No stats for such user!");
+    }
+    return { status: HttpStatus.OK, data: this.githubMapper.mapSearchActivityStatsToActivityStats(userStats) }
+  }
+
+  async getUserPrConversion(
+    accessToken: string,
+    owner: string,
+    repo: string,
+    username: string,
+  ): Promise<UserPrConversionResponse> {
+    const base = `repo:${owner}/${repo} is:pr author:${username}`;
+
+    const [totalOpened, merged, closedUnmerged, open] = await Promise.all([
+      this.searchCount(accessToken, base),
+      this.searchCount(accessToken, `${base} is:merged`),
+      this.searchCount(accessToken, `${base} is:closed is:unmerged`),
+      this.searchCount(accessToken, `${base} is:open`),
+    ]);
+
+    const calculateRate = (n: number) => (totalOpened ? n / totalOpened : 0);
+
+    return {
+      status: HttpStatus.OK,
+      data: {
+        totalOpened,
+        merged,
+        closedUnmerged,
+        open,
+        mergedRate: calculateRate(merged),
+        closedUnmergedRate: calculateRate(closedUnmerged),
+        completionRate: calculateRate(merged + closedUnmerged),
+      }
+    };
   }
 
   // Private Helpers
+  private async searchCount(token: string, q: string): Promise<number> {
+    const { data } = await axios.get(`${this.cfg.get('GITHUB_API_BASE')}/search/issues`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+      },
+      params: {
+        q,
+        per_page: 1,
+      },
+    });
+
+    return data.total_count ?? 0;
+  }
+
   private async getRepoActivity(accessToken: string, owner: string, repo: string): Promise<SearchActivityStats[]> {
     let statsResponse;
-    const cachedResponse = await this.tokenService.getRepoStats(owner + '/' + repo)
+    const cachedResponse = await this.tokenService.getRepoStats<SearchActivityStats[]>(owner + '/' + repo)
     if (cachedResponse) {
-      statsResponse = cachedResponse;
+      return cachedResponse;
     } else {
-      statsResponse = await axios.get<SearchContributor[]>(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${owner}/${repo}/stats/contributors`, {
+      statsResponse = await axios.get(`${this.cfg.get('GITHUB_API_BASE')!}/repos/${owner}/${repo}/stats/contributors`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      await this.tokenService.setRepoStats(owner + '/' + repo, statsResponse)
+      if (statsResponse.status === 202) {
+        return await this.getRepoActivity(accessToken, owner, repo);
+      } else {
+        await this.tokenService.setRepoStats<SearchActivityStats[]>(owner + '/' + repo, statsResponse.data)
+        return statsResponse.data;
+      }
     }
-    return statsResponse;
   }
 
   private async getUserRepoSlowStatsPage(
