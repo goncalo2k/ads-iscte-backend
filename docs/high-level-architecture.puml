@@ -1,0 +1,101 @@
+
+@startuml HighLevelArchitecture
+top to bottom direction
+skinparam linetype ortho
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam packagePadding 20
+skinparam defaultFontSize 11
+skinparam ArrowFontSize 10
+
+actor "User\n(Browser)" as User
+
+package "Frontend" as FE {
+  [Next.js App] as NextJS
+}
+
+package "Backend" as BE {
+  [NestJS API] as Nest
+  
+  [Auth Controller] as AuthCtrl
+  [GitHub Controller] as GHCtrl
+  
+  [Auth Service] as AuthSvc
+  [GitHub Service] as GHSvc
+  [GraphQL Service] as GraphQLSvc
+  [TokenStore Service] as TokenStoreSvc
+}
+
+database "Redis\n(cache/token-store)" as Redis
+cloud "GitHub\nExternal API" as GitHubAPI
+
+' Entry point
+User --> NextJS
+NextJS --> Nest
+note right of NextJS
+  HTTP / API calls
+  (session cookie / token)
+end note
+
+' Controllers
+Nest --> AuthCtrl
+Nest --> GHCtrl
+note left of Nest
+  Routes to controllers
+end note
+
+' Auth Controller to Auth Service
+AuthCtrl --> AuthSvc
+note right of AuthCtrl
+  Delegate to Auth Service
+end note
+
+' GitHub Controller to Services
+GHCtrl --> AuthSvc
+GHCtrl --> GHSvc
+GHCtrl --> GraphQLSvc
+note right of GHCtrl
+  Delegate to Services
+end note
+
+' Service flows
+AuthSvc --> TokenStoreSvc
+note right of AuthSvc
+  Read / Store OAuth tokens
+end note
+
+TokenStoreSvc --> Redis
+note right of TokenStoreSvc
+  Redis GET / SET
+end note
+
+GHSvc --> GitHubAPI
+note right of GHSvc
+  GitHub REST API
+  (rate-limited)
+end note
+
+GraphQLSvc --> GitHubAPI
+note right of GraphQLSvc
+  Also calls GitHub API
+  (fetch aggregated data)
+end note
+
+' Response
+Nest --> NextJS
+note left of Nest
+  API responses (JSON)
+end note
+
+note bottom of FE
+  - Client UI (Next.js)
+  - SSR + client-side requests
+end note
+
+note bottom of BE
+  - Controllers: Auth, GitHub (request handlers)
+  - Services: Auth, GitHub, GraphQL, TokenStore
+  - Providers, Repositories (NestJS)
+end note
+
+@enduml

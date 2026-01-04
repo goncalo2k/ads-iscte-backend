@@ -1,18 +1,14 @@
 import { BadRequestException, Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'crypto';
 import { TokenStoreService } from 'src/services/token-store/token-store.service';
-import jwt from 'jsonwebtoken';
 import { GithubService } from 'src/services/github/github.service';
 import { AuthService } from 'src/services/auth/auth.service';
-import { AuthProvider } from 'src/models/token-store.model';
 
 @Controller('/auth/github')
 export class AuthController {
   constructor(private cfg: ConfigService,
-    private authService: AuthService,
-    private githubService: GithubService,
-    private store: TokenStoreService) { }
+    private authService: AuthService
+  ) { }
 
   @Get('login')
   async login(@Res() res): Promise<void> {
@@ -32,7 +28,7 @@ export class AuthController {
   async logout(@Req() req, @Res() res): Promise<void> {
     res.status(await this.authService.logout(req, res)).send();
   }
-  
+
   @Get('session')
   async getSession(@Req() req, @Res() res): Promise<void> {
     res.json(await this.authService.getStatus(req));
