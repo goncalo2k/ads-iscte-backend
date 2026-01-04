@@ -20,7 +20,7 @@ async function bootstrap() {
     saveUninitialized: false,
     cookie: { httpOnly: true },
     credentials: true,
-    secret: cfg.get<string>('SESSION_SECRET'),
+    secret: cfg.get<string>('JWT_SECRET'),
   }));
 
   await app.listen(cfg.get<number>('SERVER_PORT') || 4000);
