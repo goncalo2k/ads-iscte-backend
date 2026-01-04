@@ -13,7 +13,6 @@ async function bootstrap() {
     credentials: true,
   });
 
-  console.log('origin', (cfg.get<string>('FRONTEND_URL') || '').split(',').map(s => s.trim()));
   app.use(cookieParser());
   app.use(session({
     resave: false,

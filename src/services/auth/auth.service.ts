@@ -65,9 +65,8 @@ export class AuthService {
     const cookieName = this.cfg.get('COOKIE_NAME')!;
     const secure = this.cfg.get('COOKIE_SECURE') === 'true';
     const sameSite = (this.cfg.get('COOKIE_SAMESITE')!) as SameSitePolicy;
-    const domain = this.cfg.get('COOKIE_DOMAIN')!;
 
-    return { cookieName, appJwt, options: { httpOnly: true, secure, sameSite, domain, maxAge: 1000 * 60 * (this.cfg.get('JWT_EXPIRES_IN')!) } } as Cookie;
+    return { cookieName, appJwt, options: { httpOnly: true, secure, sameSite, maxAge: 1000 * 60 * (this.cfg.get('JWT_EXPIRES_IN')!) } } as Cookie;
 
   }
   async logout(req: Request, res: Response): Promise<HttpStatus> {
@@ -94,8 +93,7 @@ export class AuthService {
       res.clearCookie(cookieName, {
         httpOnly: true,
         secure: this.cfg.get('COOKIE_SECURE') === 'true',
-        sameSite: (this.cfg.get('COOKIE_SAMESITE')!) as any,
-        domain: this.cfg.get('COOKIE_DOMAIN')!,
+        sameSite: (this.cfg.get('COOKIE_SAMESITE')!) as SameSitePolicy,
       });
       return statusCode;
     }
