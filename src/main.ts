@@ -13,13 +13,14 @@ async function bootstrap() {
     credentials: true,
   });
 
+  console.log('origin', (cfg.get<string>('FRONTEND_URL') || '').split(',').map(s => s.trim()));
   app.use(cookieParser());
   app.use(session({
     resave: false,
     saveUninitialized: false,
     cookie: { httpOnly: true },
     credentials: true,
-    secret: cfg.get<string>('SESSION_SECRET') || 'please_change_this_secret',
+    secret: cfg.get<string>('SESSION_SECRET'),
   }));
 
   await app.listen(cfg.get<number>('SERVER_PORT') || 4000);
