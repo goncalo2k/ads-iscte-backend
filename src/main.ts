@@ -7,9 +7,24 @@ import { ConfigService } from '@nestjs/config';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const cfg = app.get(ConfigService);
-
+  console.log('allowed origins', (cfg.get<string>('FRONTEND_URL') || '').split(',').map(s => s.trim()),);
   app.enableCors({
-    origin: (cfg.get<string>('FRONTEND_URL') || '').split(',').map(s => s.trim()),
+    origin: (origin, cb) => {
+      const allowed = (cfg.get<string>('FRONTEND_URL') || '')
+        .trim()
+        .replace(/\/$/, ''); // remove trailing slash
+
+      const incoming = (origin || '').replace(/\/$/, '');
+
+      console.log('[CORS] incoming:', origin, '| allowed:', allowed);
+
+      // allow non-browser calls (no Origin header)
+      if (!origin) return cb(null, true);
+
+      return incoming === allowed
+        ? cb(null, true)
+        : cb(null, false); // no ACAO header -> browser will show CORS error
+    },
     credentials: true,
   });
 

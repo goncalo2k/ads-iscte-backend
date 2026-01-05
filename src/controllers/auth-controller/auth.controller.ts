@@ -20,6 +20,7 @@ export class AuthController {
   async callback(@Query('code') code: string, @Query('state') state: string, @Res() res): Promise<void> {
     if (!code || !state) throw new BadRequestException('Missing code/state');
     const cookie = await this.authService.loginCallback(code, state);
+    console.log('cookie',cookie);
     res.cookie(cookie.cookieName, cookie.appJwt, cookie.options);
     res.redirect(`${this.cfg.get('FRONTEND_URL')!}/dashboard`);
   }
