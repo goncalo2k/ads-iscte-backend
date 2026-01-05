@@ -456,16 +456,15 @@ As for the backend, sensitive data such as access tokens and session information
  aligning with data minimization principles.
 
 \subsubsection{Deployability and Portability}
-Reliable builds and deployments across environments are ensured by deployability and portability.
+\noindent Reliable builds and deployments across environments are ensured by deployability and portability.
 
 As Next.js is the framework used for the frontend, which supports environment-driven configuration, it is 
-compatible with standard CI/CD pipelines and modern hosting platforms. In this case, the frontend is hosted 
-as a Cloudflare Worker on \href{https://ads-iscte-frontend.goncalo-miranda-cplx.workers.dev}{https://ads-iscte-frontend.goncalo-miranda-cplx.workers.dev}.
+compatible with standard CI/CD pipelines and modern hosting platforms.
 
 As for the backend, it was built on NestJS, which is a production-ready Node.js framework designed for 
 scalable server-side applications. Dependency management is handled via pnpm with lock files, ensuring 
 reproducible builds across environments. Environment-based configuration is also supported, which eases
-deployments. The backend is currently hosted on Render, on \href{https://ads-iscte-backend.onrender.com}{https://ads-iscte-backend.onrender.com}.
+deployments.
 
 \subsubsection{Testing and Quality Assurance}
 
