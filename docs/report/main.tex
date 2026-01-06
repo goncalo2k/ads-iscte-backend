@@ -501,4 +501,276 @@ adopted throughout the project support several quality attributes, adding up to 
 Overall, the system meets its defined objectives and provides a solid foundation for any possible future work 
 in repository analytics and developer productivity assessment. It also reinforces the importance of clear 
 architectural separation and informed trade-offs when designing data-intensive web applications.
+
+
+Overall, the system meets its defined objectives and provides a solid foundation for any possible future work 
+in repository analytics and developer productivity assessment. It also reinforces the importance of clear 
+architectural separation and informed trade-offs when designing data-intensive web applications.
+
+\appendix
+
+\chapter{User Stories}
+\section{GitHub OAuth Login (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want to initiate login using GitHub so that I can authenticate into the dashboard.
+  \item Story Point Estimate: 3 
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Login button redirects to GitHub OAuth.
+      \item Handles redirect callback.
+      \item Redirects to \texttt{/dashboard} on success.
+    \end{itemize}
+\end{itemize}
+
+\section{GitHub OAuth login (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to handle GitHub OAuth authentication so that secure sessions can be created.
+  \item Story Point Estimate: 5
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item OAuth code exchanged for access token
+      \item User identity resolved from GitHub
+      \item Secure session cookie created
+      \item Invalid flows are rejected
+    \end{itemize}
+\end{itemize}
+
+\section{Session-protected routing (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want protected routes to require authentication so that unauthorized access is blocked.
+  \item Story Point Estimate: 5
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Middleware blocks protected routes
+      \item Invalid session displays session dialog, in order to redirect to /login
+      \item Valid sessions allow navigation
+    \end{itemize}
+\end{itemize}
+
+\section{Session validation endpoint (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to validate active sessions so that frontend can enforce access control.
+  \item Story Point Estimate: 2
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item /session endpoint validates cookie
+      \item Returns valid/invalid status, username and TTL
+      \item Handles expired sessions correctly
+    \end{itemize}
+\end{itemize}
+
+\section{Logout (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want to log out so that my session is terminated.
+  \item Story Point Estimate: 1
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Logout clears client state
+      \item User redirected to landing page
+    \end{itemize}
+\end{itemize}
+
+\section{Logout (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to invalidate sessions so that logged-out users cannot reuse them.
+  \item Story Point Estimate: 1
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Session cookie invalidated/Removed
+      \item Server-side session cleared
+    \end{itemize}
+\end{itemize}
+
+\section{Search repositories (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want to search repositories so that I can select one to analyze.
+  \item Story Point Estimate: 3
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Search input should be smooth (debounce)
+      \item Loading skeletons shown
+      \item Results update without stale data
+    \end{itemize}
+\end{itemize}
+
+\section{Search repositories (Backend)}
+
+\section{Select repository (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want to select a repository so that I can view its dashboard.
+  \item Story Point Estimate: 2
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Clicking repo navigates to /dashboard/{owner}/{repo}
+      \item Selected repo stored in global state
+      \item Displays basic repository info
+    \end{itemize}
+\end{itemize}
+
+\section{Repository metadata fetch (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to fetch repository metadata so that dashboards have context.
+  \item Story Point Estimate: 3
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Fetch repository metadata by owner/name
+      \item Return consistent schema
+      \item Handle edge cases
+    \end{itemize}
+\end{itemize}
+
+\section{Repository overview dashboard (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want to see repository statistics so that I can understand activity at a glance.
+  \item Story Point Estimate: 5
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Commits, issues, PRs shown
+      \item Error states handled
+      \item Responsive layout
+    \end{itemize}
+\end{itemize}
+
+\section{Repository analytics aggregation (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to aggregate repository analytics so that the dashboard has unified data.
+  \item Story Point Estimate: 8
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Aggregate commits, issues, PRs
+      \item Return data in a consistent schema
+    \end{itemize}
+\end{itemize}
+
+\section{Activity over time chart (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want to view activity trends over time so that I can analyze evolution.
+  \item Story Point Estimate: 3
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Line chart renders weekly data
+      \item Tooltip shows detailed metrics
+      \item Responsive resizing
+    \end{itemize}
+\end{itemize}
+
+\section{Activity timeline endpoint (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to provide time-series activity data so that charts can be rendered.
+  \item Story Point Estimate: 5
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Weekly aggregation supported
+      \item Uses caching where possible
+    \end{itemize}
+\end{itemize}
+
+\section{PR conversion pie chart (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want to see PR conversion rates so that I understand contribution outcomes.
+  \item Story Point Estimate: 2
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Pie chart shows merged/closed/open
+      \item Supports counts and percentages
+      \item Comprehensive UI
+    \end{itemize}
+\end{itemize}
+
+\section{PR conversion metrics (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to calculate PR conversion metrics so that contribution efficiency is visible and comprehensible by the frontend.
+  \item Story Point Estimate: 3
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Count merged, closed, open PRs
+      \item Filtered by contributor
+    \end{itemize}
+\end{itemize}
+
+\section{List contributors (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want to see repository contributors so that I can analyze participation.
+  \item Story Point Estimate: 3
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Contributors list paginated
+      \item Contributor count accurate
+      \item Allow pagination when there are more users than the ones displayed
+      \item Filtering does not break pagination
+    \end{itemize}
+\end{itemize}
+
+\section{Fetch contributors (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to fetch contributors from GitHub so that contributor analytics are possible.
+  \item Story Point Estimate: 5
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Paginated GitHub API usage
+      \item Normalized contributor data
+      \item Avoids Github’s rate-limit
+    \end{itemize}
+\end{itemize}
+
+\section{Contributor search (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want to search contributors so that I can find specific users.
+  \item Story Point Estimate: 2
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Client-side filtering
+      \item No stale UI updates
+    \end{itemize}
+\end{itemize}
+
+\section{Contributor detail view (Frontend)}
+\begin{itemize}
+  \item Description: As a user, I want to view contributor details so that I can assess impact.
+  \item Story Point Estimate: 3
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Shows commits, PRs submitted and approved, lines added and removed and issues opened and closed by the user
+      \item Navigable from contributors list
+      \item Display loading states appropriately
+    \end{itemize}
+\end{itemize}
+
+\section{Contributor analytics aggregation (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to aggregate contributor activity so that detailed metrics are available.
+  \item Story Point Estimate: 8
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Fast response times
+      \item Supports contributor + repository filters
+      \item Supports caching
+      \item Supports retries for asynchronous endpoints from Github’s API
+    \end{itemize}
+\end{itemize}
+
+\section{Redis caching layer (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to cache GitHub responses so that latency and rate limits are reduced.
+  \item Story Point Estimate: 5
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item TTL-based caching implemented
+      \item Should handle sessions
+      \item Should handle data chaching
+      \item Graceful fallback on cache miss
+    \end{itemize}
+\end{itemize}
+
+\section{GitHub API error resilience (Backend)}
+\begin{itemize}
+  \item Description: As a system, I want to handle GitHub API edge cases so that the app remains usable..
+  \item Story Point Estimate: 3
+  \item Acceptance Criteria: 
+    \begin{itemize}
+      \item Handles 202 stats responses
+      \item Uses cached data when possible
+    \end{itemize}
+\end{itemize}
+
 \end{document}
