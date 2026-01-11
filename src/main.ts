@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { HttpLoggerInterceptor } from './interceptors/http-logger.interceptor';
 
 
 
@@ -12,7 +13,6 @@ async function bootstrap() {
   const cfg = app.get(ConfigService);
   const allowedOrigins = (cfg.get<string>('FRONTEND_CORS_URLS') || '*').split(',').map(s => s.trim());
 
-  console.log('allowed origins', allowedOrigins);
   app.enableCors({
     origin: cfg.get<string>('FRONTEND_CORS_URLS') || true,
     credentials: true,
@@ -35,7 +35,7 @@ async function bootstrap() {
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);
-
+  app.useGlobalInterceptors(new HttpLoggerInterceptor());
   await app.listen(cfg.get<number>('SERVER_PORT') || 4000);
 }
 bootstrap();
