@@ -10,22 +10,7 @@ async function bootstrap() {
   const cfg = app.get(ConfigService);
   console.log('allowed origins', (cfg.get<string>('FRONTEND_CORS_URLS') || '').split(',').map(s => s.trim()));
   app.enableCors({
-    origin: (origin, cb) => {
-      const allowed = (cfg.get<string>('FRONTEND_CORS_URLS') || '')
-        .trim()
-        .replace(/\/$/, ''); // remove trailing slash
-
-      const incoming = (origin || '').replace(/\/$/, '');
-
-      console.log('[CORS] incoming:', origin, '| allowed:', allowed);
-
-      // allow non-browser calls (no Origin header)
-      if (!origin) return cb(null, true);
-
-      return incoming === allowed
-        ? cb(null, true)
-        : cb(null, false); // no ACAO header -> browser will show CORS error
-    },
+    origin: (cfg.get<string>('FRONTEND_CORS_URLS') || '').trim().replace(/\/$/, ''),
     credentials: true,
   });
 
