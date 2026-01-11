@@ -10,19 +10,11 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const cfg = app.get(ConfigService);
-  const allowedOrigins = (cfg.get<string>('FRONTEND_CORS_URLS') || '').split(',').map(s => s.trim());
+  const allowedOrigins = (cfg.get<string>('FRONTEND_CORS_URLS') || '*').split(',').map(s => s.trim());
 
   console.log('allowed origins', allowedOrigins);
   app.enableCors({
-    origin: allowedOrigins/* (origin, callback) => {
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, origin);
-      }
-
-      callback(new Error(`CORS blocked for origin: ${origin}`));
-    } */,
+    origin: cfg.get<string>('FRONTEND_CORS_URLS') || true,
     credentials: true,
   });
 
