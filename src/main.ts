@@ -8,10 +8,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const cfg = app.get(ConfigService);
-  console.log('allowed origins', (cfg.get<string>('FRONTEND_URL') || '').split(',').map(s => s.trim()),);
+  console.log('allowed origins', (cfg.get<string>('FRONTEND_CORS_URLS') || '').split(',').map(s => s.trim()));
   app.enableCors({
     origin: (origin, cb) => {
-      const allowed = (cfg.get<string>('FRONTEND_URL') || '')
+      const allowed = (cfg.get<string>('FRONTEND_CORS_URLS') || '')
         .trim()
         .replace(/\/$/, ''); // remove trailing slash
 
