@@ -36,12 +36,13 @@ export class HttpLoggerInterceptor implements NestInterceptor {
 
         // Note: in an interceptor, res.statusCode is usually set by now
         const status = (res as any)?.statusCode ?? 'unknown';
+        if (data) {
+          // Avoid huge logs
+          const raw = safeJson(data);
+          const body = raw.length > 2000 ? raw.slice(0, 2000) + '…(truncated)' : raw;
 
-        // Avoid huge logs
-        const raw = safeJson(data);
-        const body = raw.length > 2000 ? raw.slice(0, 2000) + '…(truncated)' : raw;
-
-        this.logger.log(`${method} ${url} -> ${status} (${ms.toFixed(1)}ms) body=${body}`);
+          this.logger.log(`${method} ${url} -> ${status} (${ms.toFixed(1)}ms) body=${body}`);
+        }
         return data;
       }),
       catchError((err) => {
